@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riptide — a trick-taking game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --deep: #072436;
+    --deep2: #0B3A52;
+    --teal: #14636E;
+    --foam: #DCEEEA;
+    --sand: #F2E9D8;
+    --coral: #FF6A4D;
+    --coral-dim: #C94F39;
+    --ink: #06202E;
+    --gold: #E7C873;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:
+      radial-gradient(ellipse at 50% -10%, var(--teal) 0%, transparent 55%),
+      linear-gradient(180deg, var(--deep) 0%, #041721 100%);
+    color:var(--foam);
+    font-family:'Space Mono', monospace;
+    overflow-x:hidden;
+    min-height:100vh;
+  }
+  .display{font-family:'Fraunces', serif;}
+
+  /* ---------- Ambient tide lines ---------- */
+  .tide-lines{position:fixed; inset:0; pointer-events:none; z-index:0; opacity:0.12;}
+  .tide-lines svg{width:100%; height:100%;}
+
+  /* ---------- Header ---------- */
+  header{
+    position:relative; z-index:2;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 28px 10px;
+    flex-wrap:wrap; gap:12px;
+  }
+  .title-block{display:flex; align-items:baseline; gap:14px;}
+  h1{
+    font-family:'Fraunces', serif; font-weight:700; font-size:28px;
+    margin:0; letter-spacing:0.5px; color:var(--sand);
+  }
+  .subtitle{font-size:11px; color:#8FB9BE; letter-spacing:1.5px; text-transform:uppercase;}
+
+  .scoreboard{display:flex; gap:10px; flex-wrap:wrap;}
+  .score-pill{
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:20px; padding:6px 14px;
+    font-size:12px; display:flex; align-items:center; gap:8px;
+  }
+  .score-pill.you{border-color:var(--coral); background:rgba(255,106,77,0.1);}
+  .score-num{font-family:'Fraunces',serif; font-weight:700; font-size:16px; color:var(--gold);}
+
+  /* ---------- Tide gauge ---------- */
+  .tide-gauge{
+    position:relative; z-index:2;
+    margin:0 auto 6px; max-width:640px;
+    padding:10px 20px; text-align:center;
+  }
+  .tide-label{font-size:10px; letter-spacing:2px; color:#8FB9BE; text-transform:uppercase; margin-bottom:6px;}
+  .tide-rank{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:54px; height:54px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #ffdca8, var(--gold) 60%, var(--coral-dim));
+    color:var(--ink); font-family:'Fraunces',serif; font-weight:700; font-size:22px;
+    box-shadow:0 0 0 4px rgba(231,200,115,0.15), 0 0 22px rgba(231,200,115,0.35);
+    animation: pulse 2.6s ease-in-out infinite;
+    transition: background 0.3s ease;
+  }
+  .tide-rank.flipping{
+    animation: coinflip 0.85s ease-in-out;
+    background:radial-gradient(circle at 35% 30%, #cfe6e6, #8FB9BE 60%, #4c7e83);
+    box-shadow:0 0 0 4px rgba(143,185,190,0.15), 0 0 18px rgba(143,185,190,0.3);
+  }
+  @keyframes coinflip{
+    0%{ transform:rotateY(0deg) scale(1); }
+    45%{ transform:rotateY(180deg) scale(1.08); }
+    55%{ transform:rotateY(180deg) scale(1.08); }
+    100%{ transform:rotateY(360deg) scale(1); }
+  }
+  @keyframes pulse{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.06); }
+  }
+  .tide-note{font-size:11px; color:#B9D8D3; margin-top:6px; min-height:16px;}
+
+  /* ---------- Table ---------- */
+  .table-wrap{
+    position:relative; z-index:2;
+    max-width:900px; margin:6px auto 0;
+    padding:0 16px;
+  }
+  .table{
+    position:relative;
+    width:100%; aspect-ratio: 1.5 / 1;
+    max-height:420px;
+    margin:0 auto;
+    border-radius:50%/45%;
+    background:
+      radial-gradient(ellipse at center, #0F4C57 0%, #0A3742 60%, #072832 100%);
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.55), 0 20px 40px rgba(0,0,0,0.4);
+    border:1px solid rgba(255,255,255,0.06);
+  }
+  .seat{
+    position:absolute; text-align:center; font-size:11px; color:#9FC7CA;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .seat .name{letter-spacing:1px; text-transform:uppercase; font-size:10px;}
+  .seat .cardback-row{display:flex;}
+  .seat.turn .name{color:var(--gold);}
+  .cardback{
+    width:22px; height:32px; border-radius:4px; margin-left:-12px;
+    background:repeating-linear-gradient(135deg, #1a5c68, #1a5c68 3px, #124851 3px, #124851 6px);
+    border:1px solid rgba(255,255,255,0.15);
+  }
+  .cardback:first-child{margin-left:0;}
+
+  .seat.west{ top:50%; left:4%; transform:translateY(-50%); flex-direction:row-reverse; }
+  .seat.west .cardback-row{ flex-direction:column; }
+  .seat.west .cardback{ margin-left:0; margin-top:-18px; }
+  .seat.west .cardback:first-child{margin-top:0;}
+
+  .seat.north{ top:3%; left:50%; transform:translateX(-50%); }
+  .seat.east{ top:50%; right:4%; transform:translateY(-50%); flex-direction:row; }
+  .seat.east .cardback-row{ flex-direction:column; }
+  .seat.east .cardback{ margin-left:0; margin-top:-18px; }
+  .seat.east .cardback:first-child{margin-top:0;}
+
+  /* played cards in center */
+  .trick-zone{
+    position:absolute; inset:0;
+  }
+  .played{
+    position:absolute; width:52px; height:74px;
+    transition: all 0.45s cubic-bezier(.2,.8,.2,1);
+  }
+  .played.you{ bottom:32%; left:50%; transform:translate(-50%,0); }
+  .played.west{ left:28%; top:50%; transform:translate(-50%,-50%) rotate(-8deg); }
+  .played.north{ top:28%; left:50%; transform:translate(-50%,0); }
+  .played.east{ right:28%; top:50%; transform:translate(50%,-50%) rotate(8deg); }
+
+  .played.collecting.you{ transform:translate(-50%,0) translateY(-160px) scale(0.4); opacity:0; }
+  .played.collecting.west{ transform:translate(-50%,-50%) translateX(160px) scale(0.4); opacity:0; }
+  .played.collecting.north{ transform:translate(-50%,0) translateY(160px) scale(0.4); opacity:0; }
+  .played.collecting.east{ transform:translate(50%,-50%) translateX(-160px) scale(0.4); opacity:0; }
+
+  .played.riptide-win{ box-shadow:0 0 0 3px var(--coral), 0 0 24px var(--coral); }
+  .played.washed-out{ animation: washPulse 0.9s ease-in-out; }
+  .played.washed-out .card{ filter:grayscale(0.55) brightness(0.85); }
+  @keyframes washPulse{
+    0%{ box-shadow:0 0 0 0 rgba(143,185,190,0.6); }
+    50%{ box-shadow:0 0 0 8px rgba(143,185,190,0.25); }
+    100%{ box-shadow:0 0 0 0 rgba(143,185,190,0); }
+  }
+
+  /* ---------- Card look ---------- */
+  .card{
+    width:100%; height:100%; border-radius:6px;
+    background:var(--sand);
+    color:var(--ink);
+    display:flex; flex-direction:column; justify-content:space-between;
+    padding:4px 5px; font-family:'Fraunces', serif; font-weight:600;
+    box-shadow:0 3px 8px rgba(0,0,0,0.45);
+    position:relative;
+    user-select:none;
+  }
+  .card.red{ color:var(--coral-dim); }
+  .card .corner{ font-size:13px; line-height:1; }
+  .card .corner.bottom{ align-self:flex-end; transform:rotate(180deg); }
+  .card .pip{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:22px;
+  }
+  .card.tide-hot{
+    outline:2px solid var(--coral); outline-offset:1px;
+    box-shadow:0 0 12px rgba(255,106,77,0.7), 0 3px 8px rgba(0,0,0,0.45);
+  }
+
+  /* ---------- Hand ---------- */
+  .hand-wrap{
+    position:relative; z-index:2;
+    max-width:900px; margin:8px auto 4px;
+    display:flex; justify-content:center;
+    min-height:110px;
+    padding:0 12px;
+  }
+  .hand{
+    display:flex; justify-content:center;
+  }
+  .hand .card-slot{
+    width:58px; height:82px; margin-left:-22px;
+    transition: transform 0.15s ease, margin 0.2s ease;
+    cursor:pointer;
+  }
+  .hand .card-slot:first-child{ margin-left:0; }
+  .hand .card-slot:hover{ transform:translateY(-10px); }
+  .hand .card-slot.disabled{ cursor:not-allowed; filter:brightness(0.55); }
+  .hand .card-slot:active{ transform:translateY(-4px) scale(0.94); }
+  .hand .card-slot.disabled:hover{ transform:none; }
+
+  /* ---------- Score popup ---------- */
+  .score-popup{
+    position:absolute; left:50%; top:0; transform:translate(-50%,0);
+    font-family:'Fraunces',serif; font-weight:700; font-size:15px;
+    color:var(--gold); pointer-events:none;
+    animation: floatUp 0.95s ease-out forwards;
+    text-shadow:0 2px 6px rgba(0,0,0,0.6);
+    z-index:5;
+  }
+  .score-popup.riptide{ color:var(--coral); font-size:18px; }
+  @keyframes floatUp{
+    0%{ transform:translate(-50%,0) scale(0.8); opacity:0; }
+    20%{ opacity:1; transform:translate(-50%,-8px) scale(1.15); }
+    100%{ transform:translate(-50%,-48px) scale(1); opacity:0; }
+  }
+
+  /* ---------- Deal / shuffle FX ---------- */
+  .deal-fx{ position:absolute; inset:0; pointer-events:none; z-index:6; }
+  .deck-stack{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:44px; height:62px;
+  }
+  .deck-stack .stack-card{
+    position:absolute; left:0; top:0; width:44px; height:62px; border-radius:5px;
+    background:repeating-linear-gradient(135deg, #1a5c68, #1a5c68 3px, #124851 3px, #124851 6px);
+    border:1px solid rgba(255,255,255,0.18);
+    box-shadow:0 3px 6px rgba(0,0,0,0.4);
+  }
+  .deck-stack.shuffling .stack-card{ animation: riffle 0.32s ease-in-out infinite; }
+  .deck-stack.shuffling .stack-card:nth-child(2n){ animation-delay:0.05s; }
+  .deck-stack.shuffling .stack-card:nth-child(3n){ animation-delay:0.1s; }
+  @keyframes riffle{
+    0%,100%{ transform:translate(0,0) rotate(0deg); }
+    50%{ transform:translate(var(--riffle-x, 6px), -2px) rotate(var(--riffle-r, 3deg)); }
+  }
+  .flying-card{
+    position:absolute; width:30px; height:42px; border-radius:4px;
+    background:repeating-linear-gradient(135deg, #1a5c68, #1a5c68 3px, #124851 3px, #124851 6px);
+    border:1px solid rgba(255,255,255,0.18);
+    box-shadow:0 3px 6px rgba(0,0,0,0.4);
+    z-index:7;
+  }
+
+  /* ---------- Hand / cardback deal-in stagger ---------- */
+  @keyframes cardDealIn{
+    0%{ transform:translateY(60px) scale(0.7); opacity:0; }
+    100%{ transform:translateY(0) scale(1); opacity:1; }
+  }
+  .hand .card-slot.deal-in{ animation: cardDealIn 0.4s cubic-bezier(.2,.8,.2,1) backwards; }
+  @keyframes backDealIn{
+    0%{ transform:scale(0.4); opacity:0; }
+    100%{ transform:scale(1); opacity:1; }
+  }
+  .cardback.deal-in{ animation: backDealIn 0.3s ease backwards; }
+
+  /* ---------- Played card entrance ---------- */
+  .played.entering.you{ transform:translate(-50%,0) translateY(130px) scale(0.55); opacity:0; }
+  .played.entering.west{ transform:translate(-50%,-50%) translateX(-150px) scale(0.55); opacity:0; }
+  .played.entering.north{ transform:translate(-50%,0) translateY(-130px) scale(0.55); opacity:0; }
+  .played.entering.east{ transform:translate(50%,-50%) translateX(150px) scale(0.55); opacity:0; }
+
+  /* ---------- Mute button ---------- */
+  .mute-btn{
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15);
+    color:var(--foam); width:34px; height:34px; border-radius:50%;
+    cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center;
+    transition: background 0.2s ease, transform 0.15s ease;
+  }
+  .mute-btn:hover{ background:rgba(255,255,255,0.14); transform:scale(1.06); }
+
+  /* ---------- Confetti ---------- */
+  .confetti-piece{
+    position:fixed; top:-20px; width:8px; height:14px; z-index:20; pointer-events:none;
+    animation: confettiFall linear forwards;
+  }
+  @keyframes confettiFall{
+    0%{ transform:translateY(0) rotate(0deg); opacity:1; }
+    100%{ transform:translateY(112vh) rotate(560deg); opacity:0.9; }
+  }
+
+  /* ---------- Log / status ---------- */
+  .status-bar{
+    position:relative; z-index:2;
+    max-width:900px; margin:6px auto 0; padding:0 20px;
+    text-align:center; font-size:12px; color:#B9D8D3; min-height:18px;
+    letter-spacing:0.3px;
+  }
+  .status-bar .accent{ color:var(--coral); }
+
+  footer{
+    position:relative; z-index:2;
+    text-align:center; padding:18px 20px 30px; font-size:10px; color:#5F8B90;
+    letter-spacing:1px;
+  }
+
+  /* ---------- Overlay ---------- */
+  .overlay{
+    position:fixed; inset:0; z-index:10;
+    background:rgba(3,15,22,0.86);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .overlay.hidden{ display:none; }
+  .overlay.bid-overlay-backdrop{ background:rgba(3,15,22,0.6); }
+  .modal{
+    background:linear-gradient(180deg, #0D4552, #082E39);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:14px; padding:32px 30px; max-width:420px; text-align:center;
+    box-shadow:0 30px 60px rgba(0,0,0,0.6);
+    max-height:88vh; overflow-y:auto;
+    scrollbar-width:thin; scrollbar-color:rgba(231,200,115,0.4) rgba(255,255,255,0.05);
+  }
+  .modal::-webkit-scrollbar{ width:8px; }
+  .modal::-webkit-scrollbar-track{ background:rgba(255,255,255,0.05); border-radius:8px; }
+  .modal::-webkit-scrollbar-thumb{ background:rgba(231,200,115,0.4); border-radius:8px; }
+  .modal::-webkit-scrollbar-thumb:hover{ background:rgba(231,200,115,0.6); }
+  @keyframes modalPop{
+    0%{ transform:scale(0.86) translateY(10px); opacity:0; }
+    100%{ transform:scale(1) translateY(0); opacity:1; }
+  }
+  .modal.anim-in{ animation: modalPop 0.4s cubic-bezier(.2,.9,.25,1.15); }
+  .modal.modal-wide{ max-width:480px; }
+  .modal-eyebrow{
+    font-size:10px; letter-spacing:2.5px; text-transform:uppercase;
+    color:#8FB9BE; margin-bottom:6px;
+  }
+  .modal h2{ font-family:'Fraunces',serif; font-size:26px; margin:0 0 8px; color:var(--gold); }
+  .modal p{ font-size:13px; color:#BFDCD9; line-height:1.6; }
+  .modal-intro{ font-size:13px; color:#BFDCD9; line-height:1.6; margin:0 0 4px; }
+
+  /* ---------- Rule list (intro modal) ---------- */
+  .rule-list{ text-align:left; margin:20px 0 24px; display:flex; flex-direction:column; gap:15px; }
+  .rule-item{ display:flex; gap:12px; align-items:flex-start; }
+  .rule-icon{
+    flex-shrink:0; width:32px; height:32px; border-radius:9px; margin-top:1px;
+    background:rgba(231,200,115,0.12); border:1px solid rgba(231,200,115,0.25);
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; color:var(--gold);
+  }
+  .rule-copy{ padding-top:1px; }
+  .rule-title{
+    font-family:'Fraunces',serif; font-weight:600; font-size:13.5px;
+    color:var(--sand); margin-bottom:3px; letter-spacing:0.2px;
+  }
+  .rule-desc{ font-size:12px; color:#B9D8D3; line-height:1.55; }
+  .rule-desc b{ color:var(--coral); font-weight:700; }
+
+  /* ---------- Results table (round-end / game-over modals) ---------- */
+  .results-table{ margin:18px 0 8px; border-top:1px solid rgba(255,255,255,0.1); }
+  .results-row{
+    display:grid; grid-template-columns:34px 1fr auto auto;
+    align-items:center; column-gap:10px; padding:10px 6px;
+    border-bottom:1px solid rgba(255,255,255,0.08); text-align:left;
+  }
+  .results-row.winner{
+    background:linear-gradient(90deg, rgba(231,200,115,0.1), transparent);
+    border-radius:6px;
+  }
+  .results-row .rank-icon{ font-size:12px; text-align:center; white-space:nowrap; letter-spacing:1px; }
+  .results-row .player-name{ font-family:'Fraunces',serif; font-weight:600; font-size:13.5px; color:var(--sand); }
+  .results-row .player-name.you{ color:var(--coral); }
+  .you-badge{
+    font-size:8.5px; background:var(--coral); color:#1c0a05; padding:2px 6px;
+    border-radius:8px; margin-left:6px; letter-spacing:0.5px; text-transform:uppercase;
+    vertical-align:middle; font-family:'Space Mono',monospace; font-weight:700;
+  }
+  .results-row .tricks{ font-size:11px; color:#8FB9BE; white-space:nowrap; }
+  .bid-tag{
+    font-size:9.5px; color:#8FB9BE; background:rgba(255,255,255,0.07);
+    padding:1px 6px; border-radius:6px; margin-left:5px; font-family:'Space Mono',monospace;
+    white-space:nowrap;
+  }
+  .results-row .points{
+    font-family:'Fraunces',serif; font-weight:700; color:var(--gold);
+    font-size:14px; text-align:right; white-space:nowrap;
+  }
+  .results-row .points .delta{
+    display:block; font-size:10px; color:#8FB9BE; font-weight:400;
+    font-family:'Space Mono',monospace;
+  }
+
+  /* ---------- Score progress toward target ---------- */
+  .progress-block{ margin-top:16px; text-align:left; }
+  .score-progress-row{ display:flex; align-items:center; gap:9px; margin-bottom:7px; font-size:11px; color:#9FC7CA; }
+  .score-progress-row .label{ width:44px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .score-progress-bar{ flex:1; height:6px; border-radius:3px; background:rgba(255,255,255,0.08); overflow:hidden; display:flex; }
+  .score-progress-fill{ display:block; height:100%; background:linear-gradient(90deg, var(--teal), var(--gold)); border-radius:3px; transition:width 0.6s ease; }
+  .score-progress-row .val{ width:22px; text-align:right; font-family:'Fraunces',serif; font-weight:600; color:var(--sand); }
+
+  /* ---------- Bid stepper ---------- */
+  .bid-stepper{ display:flex; align-items:center; justify-content:center; gap:22px; margin:24px 0; }
+  .bid-step-btn{
+    width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,0.2);
+    background:rgba(255,255,255,0.06); color:var(--foam); font-size:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+    transition: background 0.15s ease, transform 0.1s ease; font-family:'Space Mono',monospace;
+  }
+  .bid-step-btn:hover{ background:rgba(255,255,255,0.14); }
+  .bid-step-btn:active{ transform:scale(0.92); }
+  .bid-value{
+    font-family:'Fraunces',serif; font-weight:700; font-size:42px; color:var(--gold);
+    min-width:64px; text-align:center;
+  }
+
+  button.primary{
+    background:var(--coral); color:#1c0a05; border:none;
+    font-family:'Space Mono',monospace; font-weight:700; letter-spacing:0.5px;
+    padding:12px 26px; border-radius:8px; cursor:pointer; font-size:13px;
+    margin-top:10px;
+  }
+  button.primary:hover{ background:#ff8163; }
+  button.ghost{
+    background:transparent; color:#B9D8D3; border:1px solid rgba(255,255,255,0.2);
+    padding:10px 20px; border-radius:8px; cursor:pointer; font-size:12px;
+    font-family:'Space Mono',monospace; margin-top:10px; margin-left:8px;
+  }
+
+  @media (max-width:640px){
+    h1{font-size:22px;}
+    .table{max-height:340px;}
+    .hand .card-slot{width:46px; height:66px; margin-left:-18px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="tide-lines"><svg viewBox="0 0 1000 400" preserveAspectRatio="none">
+  <path d="M0,60 Q250,10 500,60 T1000,60" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+  <path d="M0,140 Q250,90 500,140 T1000,140" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+  <path d="M0,320 Q250,270 500,320 T1000,320" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+</svg></div>
+
+<header>
+  <div class="title-block">
+    <h1>Riptide</h1>
+    <span class="subtitle">a trick-taking game</span>
+  </div>
+  <div class="scoreboard" id="scoreboard"></div>
+  <button class="mute-btn" id="muteBtn" title="Mute sound">🔊</button>
+</header>
+
+<div class="tide-gauge">
+  <div class="tide-label">the tide is bringing in</div>
+  <div class="tide-rank" id="tideRankDisplay">A</div>
+  <div class="tide-note" id="tideNote">Any card of this rank wins the trick outright.</div>
+</div>
+
+<div class="table-wrap">
+  <div class="table" id="table">
+    <div class="seat west" id="seat-west"><div class="cardback-row" id="cards-west"></div><div class="name" id="seatname-west">West</div></div>
+    <div class="seat north" id="seat-north"><div class="name" id="seatname-north">North</div><div class="cardback-row" id="cards-north"></div></div>
+    <div class="seat east" id="seat-east"><div class="cardback-row" id="cards-east"></div><div class="name" id="seatname-east">East</div></div>
+    <div class="trick-zone" id="trickZone"></div>
+    <div class="deal-fx" id="dealFx"></div>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">Dealing...</div>
+
+<div class="hand-wrap">
+  <div class="hand" id="hand"></div>
+</div>
+
+<footer>Trick 0 / 13 &nbsp;·&nbsp; first to 21 points wins the game</footer>
+
+<div class="overlay" id="overlay">
+  <div class="modal modal-wide">
+    <div class="modal-eyebrow">Trick-taking · 4 players</div>
+    <h2>Riptide</h2>
+    <p class="modal-intro">You against three currents. No partnerships — just your cards, your nerve, and the tide.</p>
+
+    <div class="rule-list">
+      <div class="rule-item">
+        <div class="rule-icon">🎯</div>
+        <div class="rule-copy">
+          <div class="rule-title">Bid your tricks</div>
+          <div class="rule-desc">Once your hand is dealt, predict how many of the 13 tricks you'll win. Closest to your bid <b>without going over</b> earns a <b>+3 point</b> bonus at hand's end.</div>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon">♠</div>
+        <div class="rule-copy">
+          <div class="rule-title">Follow suit</div>
+          <div class="rule-desc">Highest card of the suit led wins the trick — unless the tide turns.</div>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon">🌊</div>
+        <div class="rule-copy">
+          <div class="rule-title">The tide turns</div>
+          <div class="rule-desc">Every trick has a secret rank, shuffled fresh each hand and revealed only when the trick begins. Any card of that rank <b>wins outright</b>, no matter what was led.</div>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon">↺</div>
+        <div class="rule-copy">
+          <div class="rule-title">Washout</div>
+          <div class="rule-desc">A second tide card played in the same trick cancels the first — the tide washes out and the trick reverts to normal rules.</div>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon">★</div>
+        <div class="rule-copy">
+          <div class="rule-title">Scoring</div>
+          <div class="rule-desc"><b>1 point</b> for a normal trick, <b>2 points</b> if you win it with the tide card. First to <b>21</b> wins.</div>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-icon">➜</div>
+        <div class="rule-copy">
+          <div class="rule-title">Leading the next hand</div>
+          <div class="rule-desc">Whoever wins the most tricks in a hand leads the next one — an edge worth playing for.</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="primary" id="startBtn">Deal me in</button>
+  </div>
+</div>
+
+<div class="overlay hidden bid-overlay-backdrop" id="bidOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-eyebrow">Hand <span id="bidHandNumber">1</span> · Bidding</div>
+    <h2>How many tricks will you take?</h2>
+    <p class="modal-intro">Cards are dealt. Predict your trick count for this hand — closest to your bid <b>without going over</b> earns a bonus.</p>
+    <div class="bid-stepper">
+      <button class="bid-step-btn" id="bidMinus" type="button">−</button>
+      <div class="bid-value" id="bidValue">3</div>
+      <button class="bid-step-btn" id="bidPlus" type="button">+</button>
+    </div>
+    <button class="primary" id="lockBidBtn">Lock in bid</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="roundOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-eyebrow">Hand <span id="roundNumber">1</span> complete</div>
+    <h2 id="roundTitle">Hand complete</h2>
+    <p class="modal-intro" id="roundSubtitle"></p>
+    <div class="results-table" id="resultsTable"></div>
+    <div class="progress-block" id="progressTrack"></div>
+    <button class="primary" id="nextRoundBtn">Deal next hand</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="gameOverOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-eyebrow">Game over</div>
+    <h2 id="gameOverTitle">Game over</h2>
+    <p class="modal-intro" id="gameOverSubtitle"></p>
+    <div class="results-table" id="gameOverResultsTable"></div>
+    <button class="primary" id="restartBtn">Play again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const SUITS = ['S','H','D','C'];
+  const SUIT_SYMBOL = { S:'♠', H:'♥', D:'♦', C:'♣' };
+  const RANK_LABEL = {1:'A',2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K'};
+
+  const PLAYERS = [
+    { id:0, name:'You', seat:'you', isHuman:true },
+    { id:1, name:'West', seat:'west', isHuman:false },
+    { id:2, name:'North', seat:'north', isHuman:false },
+    { id:3, name:'East', seat:'east', isHuman:false },
+  ];
+  const TARGET_SCORE = 21;
+  const BID_BONUS = 3; // awarded for closest-without-going-over trick bid each hand
+
+  const FUNNY_NAMES = [
+    'Salty Pete', 'Captain Kelp', 'Barnacle Bill', 'Reef Rick', 'Sandy Shores',
+    'Wavey Davey', 'Marina Trench', 'Buoy George', 'Chief Chum', 'Old Sea Dog',
+    'Anchor Annie', 'Tuna Turner', 'Sir Krillington', 'Pearl Diver Pat',
+    'Nauti Nancy', 'Deckhand Dale', 'Skipper Sal', 'Commodore Cod',
+    'Mussel Max', 'Longshore Lou', 'Riptide Rita', 'Undertow Ursula',
+  ];
+
+  function assignAINames(){
+    const pool = FUNNY_NAMES.slice();
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    const [n1,n2,n3] = pool;
+    PLAYERS[1].name = n1;
+    PLAYERS[2].name = n2;
+    PLAYERS[3].name = n3;
+    const west = document.getElementById('seatname-west');
+    const north = document.getElementById('seatname-north');
+    const east = document.getElementById('seatname-east');
+    if(west) west.textContent = n1;
+    if(north) north.textContent = n2;
+    if(east) east.textContent = n3;
+  }
+
+  // ---------------- Sound engine (synthesized, no audio files) ----------------
+  const SFX = (function(){
+    let ctx=null, masterGain=null, muted=false, ambienceSrc=null, ambienceGain=null;
+    function ensureCtx(){
+      if(!ctx){
+        ctx = new (window.AudioContext||window.webkitAudioContext)();
+        masterGain = ctx.createGain();
+        masterGain.gain.value = 0.85;
+        masterGain.connect(ctx.destination);
+      }
+      if(ctx.state==='suspended') ctx.resume();
+      return ctx;
+    }
+    function tone(freq, dur, opts={}){
+      if(muted) return;
+      const c = ensureCtx();
+      const t0 = c.currentTime + (opts.delay||0);
+      const osc = c.createOscillator();
+      osc.type = opts.type||'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      if(opts.freqEnd) osc.frequency.exponentialRampToValueAtTime(Math.max(opts.freqEnd,1), t0+dur);
+      const g = c.createGain();
+      const vol = opts.volume!=null?opts.volume:0.18;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0+0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+      osc.connect(g); g.connect(masterGain);
+      osc.start(t0); osc.stop(t0+dur+0.03);
+    }
+    function noiseBurst(dur, opts={}){
+      if(muted) return;
+      const c = ensureCtx();
+      const t0 = c.currentTime + (opts.delay||0);
+      const bufferSize = Math.max(1, Math.floor(c.sampleRate*dur));
+      const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1) * (1 - i/bufferSize); }
+      const src = c.createBufferSource();
+      src.buffer = buffer;
+      const filter = c.createBiquadFilter();
+      filter.type = opts.filterType||'bandpass';
+      filter.frequency.value = opts.filterFreq||2500;
+      filter.Q.value = opts.Q!=null?opts.Q:0.8;
+      const g = c.createGain();
+      g.gain.value = opts.volume!=null?opts.volume:0.14;
+      src.connect(filter); filter.connect(g); g.connect(masterGain);
+      src.start(t0);
+    }
+    return {
+      setMuted(v){
+        muted = v;
+        if(ambienceGain) ambienceGain.gain.setTargetAtTime(v?0:0.03, ensureCtx().currentTime, 0.4);
+      },
+      isMuted(){ return muted; },
+      unlock(){ ensureCtx(); },
+      cardPlay(){ noiseBurst(0.07,{filterFreq:3400,volume:0.1,filterType:'highpass'}); tone(560,0.05,{type:'triangle',volume:0.05,delay:0.015}); },
+      shuffleTick(){ noiseBurst(0.06,{filterFreq:1600+Math.random()*1400,volume:0.08,filterType:'bandpass'}); },
+      dealTick(){ noiseBurst(0.045,{filterFreq:3800,volume:0.05,filterType:'bandpass'}); },
+      tideReveal(){ tone(220,0.5,{type:'sine',freqEnd:440,volume:0.11}); tone(330,0.45,{type:'sine',freqEnd:660,volume:0.07,delay:0.05}); },
+      trickWin(){ [523.25,659.25,783.99].forEach((f,i)=>tone(f,0.22,{type:'sine',volume:0.09,delay:i*0.06})); },
+      riptideWin(){ [392,523.25,659.25,880].forEach((f,i)=>tone(f,0.3,{type:'triangle',volume:0.13,delay:i*0.05})); tone(80,0.4,{type:'sine',volume:0.16}); },
+      washout(){ tone(500,0.35,{type:'sine',freqEnd:110,volume:0.12}); noiseBurst(0.3,{filterFreq:800,volume:0.07,filterType:'lowpass'}); },
+      roundEnd(){ [440,554.37,659.25,880].forEach((f,i)=>tone(f,0.25,{type:'triangle',volume:0.09,delay:i*0.08})); },
+      bidBonus(){ [660,880,1046.5].forEach((f,i)=>tone(f,0.26,{type:'sine',volume:0.13,delay:i*0.09})); },
+      gameWin(){ [523.25,659.25,783.99,1046.5,1318.5].forEach((f,i)=>tone(f,0.35,{type:'triangle',volume:0.15,delay:i*0.11})); },
+      gameLose(){ [392,349.23,293.66,220].forEach((f,i)=>tone(f,0.42,{type:'sine',volume:0.11,delay:i*0.16})); },
+      click(){ tone(700,0.05,{type:'square',volume:0.04}); },
+      startAmbience(){
+        const c = ensureCtx();
+        if(ambienceSrc) return;
+        const bufferSize = c.sampleRate*4;
+        const buffer = c.createBuffer(1,bufferSize,c.sampleRate);
+        const data = buffer.getChannelData(0);
+        let last=0;
+        for(let i=0;i<bufferSize;i++){ const white=Math.random()*2-1; data[i]=(last+0.02*white)/1.02; last=data[i]; data[i]*=3.2; }
+        const src = c.createBufferSource();
+        src.buffer=buffer; src.loop=true;
+        const filter = c.createBiquadFilter();
+        filter.type='lowpass'; filter.frequency.value=450;
+        ambienceGain = c.createGain();
+        ambienceGain.gain.value = muted?0:0.03;
+        src.connect(filter); filter.connect(ambienceGain); ambienceGain.connect(masterGain);
+        src.start();
+        ambienceSrc = src;
+      }
+    };
+  })();
+
+  let state = null;
+
+  function freshDeck(){
+    const d = [];
+    for(const s of SUITS){ for(let r=1;r<=13;r++){ d.push({rank:r, suit:s}); } }
+    for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+    return d;
+  }
+
+  function newGameState(){
+    return {
+      scores:[0,0,0,0],
+      round:0,
+      hands:[[],[],[],[]],
+      trickNum:1,
+      tideSequence:[],
+      tideRank:null,
+      tideRevealed:false,
+      ledSuit:null,
+      trick:[], // {player, card}
+      currentPlayer:0,
+      leader:0,
+      log:'',
+      locked:false,
+      tricksThisRound:[0,0,0,0],
+      pointsThisRound:[0,0,0,0],
+      seenCards:[], // all cards played so far this round, for AI card-counting
+      revealHands:false,
+      justRevealed:false,
+      lastHandWinner:0, // who leads the next hand; defaults to You for the very first hand
+      bids:[null,null,null,null],
+      lastBidBonusIdx:-1,
+    };
+  }
+
+  function shuffledRankSequence(){
+    const seq = [];
+    for(let r=1;r<=13;r++) seq.push(r);
+    for(let i=seq.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [seq[i],seq[j]]=[seq[j],seq[i]]; }
+    return seq;
+  }
+
+  function startRound(){
+    const deck = freshDeck();
+    state.hands = [[],[],[],[]];
+    for(let i=0;i<52;i++){ state.hands[i%4].push(deck[i]); }
+    for(const h of state.hands){ h.sort(sortCards); }
+    state.trickNum = 1;
+    state.tideSequence = shuffledRankSequence();
+    state.tideRank = null;
+    state.tideRevealed = false;
+    state.ledSuit = null;
+    state.trick = [];
+    state.leader = state.lastHandWinner;
+    state.currentPlayer = state.leader;
+    state.tricksThisRound = [0,0,0,0];
+    state.pointsThisRound = [0,0,0,0];
+    state.seenCards = [];
+    state.revealHands = false;
+    state.bids = [null,null,null,null];
+    state.lastBidBonusIdx = -1;
+    state.round += 1;
+    render();
+    setStatus(`Shuffling for hand ${state.round}...`);
+    playShuffleAndDeal(state.leader, ()=>{
+      state.revealHands = true;
+      state.justRevealed = true;
+      render();
+      state.justRevealed = false;
+      setStatus(`Hand ${state.round} dealt.`);
+      showBidOverlay(()=>{
+        revealTideForTrick(()=>{
+          setStatus(`${PLAYERS[state.leader].name} leads.`);
+          maybeAdvanceAI();
+        });
+      });
+    });
+  }
+
+  function seatFxPosition(seatKey){
+    switch(seatKey){
+      case 'you': return { left:'50%', top:'90%' };
+      case 'west': return { left:'10%', top:'50%' };
+      case 'north': return { left:'50%', top:'12%' };
+      case 'east': return { left:'90%', top:'50%' };
+    }
+  }
+
+  function playShuffleAndDeal(leaderIdx, callback){
+    const fx = document.getElementById('dealFx');
+    fx.innerHTML = '';
+    const deck = document.createElement('div');
+    deck.className = 'deck-stack shuffling';
+    for(let i=0;i<6;i++){
+      const c = document.createElement('div');
+      c.className = 'stack-card';
+      c.style.setProperty('--riffle-x', (Math.random()*10-5).toFixed(1)+'px');
+      c.style.setProperty('--riffle-r', (Math.random()*8-4).toFixed(1)+'deg');
+      c.style.transform = `translate(${(Math.random()*4-2).toFixed(1)}px, ${(Math.random()*4-2).toFixed(1)}px)`;
+      deck.appendChild(c);
+    }
+    fx.appendChild(deck);
+
+    const shuffleInterval = setInterval(()=>{ SFX.shuffleTick(); }, 130);
+
+    setTimeout(()=>{
+      clearInterval(shuffleInterval);
+      deck.classList.remove('shuffling');
+      dealFlourish(leaderIdx, ()=>{
+        fx.innerHTML = '';
+        if(callback) callback();
+      });
+    }, 900);
+  }
+
+  function dealFlourish(leaderIdx, done){
+    const fx = document.getElementById('dealFx');
+    const flyer = document.createElement('div');
+    flyer.className = 'flying-card';
+    flyer.style.left = '50%';
+    flyer.style.top = '50%';
+    flyer.style.transform = 'translate(-50%,-50%)';
+    fx.appendChild(flyer);
+
+    const order = [];
+    for(let round=0; round<13; round++){
+      for(let s=0; s<4; s++){ order.push((leaderIdx+s)%4); }
+    }
+
+    let i = 0;
+    function step(){
+      if(i >= order.length){
+        flyer.remove();
+        done();
+        return;
+      }
+      const pos = seatFxPosition(PLAYERS[order[i]].seat);
+      flyer.style.transition = 'none';
+      flyer.style.left = '50%';
+      flyer.style.top = '50%';
+      flyer.style.transform = 'translate(-50%,-50%) scale(1)';
+      void flyer.offsetWidth; // reflow to restart transition
+      flyer.style.transition = 'left 0.09s linear, top 0.09s linear, transform 0.09s linear';
+      flyer.style.left = pos.left;
+      flyer.style.top = pos.top;
+      flyer.style.transform = 'translate(-50%,-50%) scale(0.7)';
+      SFX.dealTick();
+      i++;
+      setTimeout(step, 34);
+    }
+    step();
+  }
+
+  function estimateAIBid(playerIdx){
+    // Hand-strength heuristic — AI doesn't know the tide sequence any more than a
+    // human would at bid time, so this is based purely on raw card strength.
+    const hand = state.hands[playerIdx];
+    let power = 0;
+    for(const c of hand){
+      const v = compareValue(c.rank);
+      if(v===14) power += 0.75;       // Ace
+      else if(v===13) power += 0.55;  // King
+      else if(v===12) power += 0.35;  // Queen
+      else if(v===11) power += 0.18;  // Jack
+      else if(v===10) power += 0.10;
+      else power += 0.03;
+    }
+    const bySuit = {};
+    for(const c of hand){ bySuit[c.suit] = (bySuit[c.suit]||0) + 1; }
+    for(const s in bySuit){ if(bySuit[s] >= 5) power += (bySuit[s]-4) * 0.3; }
+    let bid = Math.round(power) + Math.round((Math.random()-0.5)*2); // small jitter
+    return clamp(bid, 0, 13);
+  }
+
+  function showBidOverlay(callback){
+    let value = 3;
+    document.getElementById('bidHandNumber').textContent = state.round;
+    document.getElementById('bidValue').textContent = value;
+    showOverlay('bidOverlay');
+
+    const minusBtn = document.getElementById('bidMinus');
+    const plusBtn = document.getElementById('bidPlus');
+    const lockBtn = document.getElementById('lockBidBtn');
+
+    function updateVal(delta){
+      value = clamp(value + delta, 0, 13);
+      document.getElementById('bidValue').textContent = value;
+      SFX.click();
+    }
+    minusBtn.onclick = ()=> updateVal(-1);
+    plusBtn.onclick = ()=> updateVal(1);
+    lockBtn.onclick = ()=>{
+      SFX.click();
+      state.bids[0] = value;
+      for(let i=1;i<4;i++){ state.bids[i] = estimateAIBid(i); }
+      document.getElementById('bidOverlay').classList.add('hidden');
+      const summary = PLAYERS.map((p,i)=> `${i===0?'You':p.name} ${state.bids[i]}`).join(' · ');
+      setStatus(`Bids are in — ${summary}. Watching the tide...`);
+      if(callback) callback();
+    };
+  }
+
+  function computeBidBonus(){
+    let bestIdx = -1, bestGap = Infinity;
+    for(let i=0;i<4;i++){
+      const bid = state.bids[i];
+      if(bid == null) continue;
+      const actual = state.tricksThisRound[i];
+      const gap = bid - actual;
+      if(gap < 0) continue; // went over their own bid — disqualified
+      if(gap < bestGap || (gap === bestGap && (bestIdx===-1 || bid > state.bids[bestIdx]))){
+        bestGap = gap;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  function revealTideForTrick(callback){
+    state.tideRevealed = false;
+    state.tideRank = null;
+    render();
+    const gauge = document.getElementById('tideRankDisplay');
+    if(gauge) gauge.classList.add('flipping');
+    setTimeout(()=>{
+      state.tideRank = state.tideSequence[state.trickNum-1];
+      state.tideRevealed = true;
+      SFX.tideReveal();
+      render();
+      const g = document.getElementById('tideRankDisplay');
+      if(g) g.classList.remove('flipping');
+      if(callback) callback();
+    }, 850);
+  }
+
+  function sortCards(a,b){
+    if(a.suit !== b.suit) return SUITS.indexOf(a.suit)-SUITS.indexOf(b.suit);
+    return a.rank - b.rank;
+  }
+
+  function compareValue(rank){ return rank===1 ? 14 : rank; } // ace high for normal comparisons
+
+  function legalCards(playerIdx){
+    const hand = state.hands[playerIdx];
+    if(state.ledSuit===null) return hand.slice();
+    const followers = hand.filter(c=>c.suit===state.ledSuit);
+    return followers.length ? followers : hand.slice();
+  }
+
+  function playCard(playerIdx, card){
+    const hand = state.hands[playerIdx];
+    const idx = hand.findIndex(c=>c.rank===card.rank && c.suit===card.suit);
+    if(idx===-1) return;
+    hand.splice(idx,1);
+    state.trick.push({player:playerIdx, card});
+    state.seenCards.push(card);
+    if(state.ledSuit===null) state.ledSuit = card.suit;
+    SFX.cardPlay();
+    render();
+  }
+
+  function isRiptide(card){ return state.tideRevealed && card.rank === state.tideRank; }
+
+  function resolveTrick(){
+    const riptideEntries = state.trick.filter(p=>isRiptide(p.card));
+    let winnerEntry;
+    let wonByRiptide = false;
+    let washedOut = false;
+    if(riptideEntries.length === 1){
+      wonByRiptide = true;
+      winnerEntry = riptideEntries[0];
+    } else {
+      // zero tide cards, or two+ that cancel each other out (washout) — resolve normally
+      washedOut = riptideEntries.length >= 2;
+      const led = state.trick.filter(p=>p.card.suit===state.ledSuit);
+      led.sort((a,b)=> compareValue(b.card.rank)-compareValue(a.card.rank));
+      winnerEntry = led[0];
+    }
+    return { winner:winnerEntry.player, wonByRiptide, washedOut, riptideEntries };
+  }
+
+  function afterTrickComplete(){
+    state.locked = true;
+    const { winner, wonByRiptide, washedOut, riptideEntries } = resolveTrick();
+    highlightWinningCard(winner, wonByRiptide);
+    if(washedOut) highlightWashout(riptideEntries);
+    const pts = wonByRiptide ? 2 : 1;
+    state.scores[winner] += pts;
+    state.tricksThisRound[winner] += 1;
+    state.pointsThisRound[winner] += pts;
+    spawnScorePopup(winner, pts, wonByRiptide);
+    if(washedOut){
+      SFX.washout();
+      setStatus(`🌊 Tide washed out — cards cancel! ${PLAYERS[winner].name} takes it on a normal trick (+1).`);
+    } else if(wonByRiptide){
+      SFX.riptideWin();
+      setStatus(`${PLAYERS[winner].name} takes the trick with the tide card! +2`);
+    } else {
+      SFX.trickWin();
+      setStatus(`${PLAYERS[winner].name} takes the trick (+1).`);
+    }
+
+    setTimeout(()=>{
+      collectTrick();
+      setTimeout(()=>{
+        state.trick = [];
+        state.ledSuit = null;
+        state.leader = winner;
+        state.currentPlayer = winner;
+        state.trickNum += 1;
+        state.locked = false;
+
+        if(state.hands.every(h=>h.length===0)){
+          endRound();
+        } else {
+          setStatus(`Watching the tide for trick ${state.trickNum}...`);
+          revealTideForTrick(()=>{
+            setStatus(`${PLAYERS[winner].name} leads trick ${state.trickNum}.`);
+            maybeAdvanceAI();
+          });
+        }
+      }, 480);
+    }, 900);
+  }
+
+  function highlightWinningCard(winner, wonByRiptide){
+    if(!wonByRiptide) return;
+    const el = document.querySelector(`.played.${PLAYERS[winner].seat}`);
+    if(el) el.classList.add('riptide-win');
+  }
+
+  function spawnScorePopup(winner, pts, wonByRiptide){
+    const el = document.querySelector(`.played.${PLAYERS[winner].seat}`);
+    if(!el) return;
+    const popup = document.createElement('div');
+    popup.className = 'score-popup' + (wonByRiptide ? ' riptide' : '');
+    popup.textContent = '+'+pts;
+    el.appendChild(popup);
+    setTimeout(()=>{ popup.remove(); }, 950);
+  }
+
+  function highlightWashout(riptideEntries){
+    for(const entry of riptideEntries){
+      const el = document.querySelector(`.played.${PLAYERS[entry.player].seat}`);
+      if(el) el.classList.add('washed-out');
+    }
+  }
+
+  function collectTrick(){
+    for(const p of PLAYERS){
+      const el = document.querySelector(`.played.${p.seat}`);
+      if(el) el.classList.add('collecting');
+    }
+  }
+
+  function showOverlay(id){
+    const overlay = document.getElementById(id);
+    overlay.classList.remove('hidden');
+    const modal = overlay.querySelector('.modal');
+    modal.classList.remove('anim-in');
+    void modal.offsetWidth;
+    modal.classList.add('anim-in');
+  }
+
+  function buildResultsRows(container, opts){
+    container.innerHTML = '';
+    const order = [0,1,2,3].slice().sort((a,b)=> state.scores[b]-state.scores[a]);
+    order.forEach(i=>{
+      const isYou = i===0;
+      const isHandWinner = opts.highlight === i;
+      const isBidWinner = opts.bidBonusIdx === i;
+      const row = document.createElement('div');
+      row.className = 'results-row' + ((isHandWinner || isBidWinner) ? ' winner' : '');
+      let icons = '';
+      if(isHandWinner) icons += '🏆';
+      if(isBidWinner) icons += (icons ? ' ' : '') + '🎯';
+      const bidTag = (opts.showTricks && state.bids[i]!=null) ? `<span class="bid-tag">bid ${state.bids[i]}</span>` : '';
+      const tricksHtml = opts.showTricks
+        ? `<span class="tricks">${state.tricksThisRound[i]} trick${state.tricksThisRound[i]===1?'':'s'} ${bidTag}</span>`
+        : `<span class="tricks"></span>`;
+      const pointsHtml = opts.showTricks
+        ? `+${state.pointsThisRound[i]}<span class="delta">${state.scores[i]} pts total</span>`
+        : `${state.scores[i]} pts`;
+      row.innerHTML = `
+        <span class="rank-icon">${icons}</span>
+        <span class="player-name${isYou ? ' you' : ''}">${PLAYERS[i].name}${isYou ? ' <span class="you-badge">You</span>' : ''}</span>
+        ${tricksHtml}
+        <span class="points">${pointsHtml}</span>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  function buildProgressBars(container){
+    container.innerHTML = `<div class="modal-eyebrow">Race to ${TARGET_SCORE}</div>`;
+    const order = [0,1,2,3].slice().sort((a,b)=> state.scores[b]-state.scores[a]);
+    order.forEach(i=>{
+      const p = PLAYERS[i];
+      const pct = Math.min(100, (state.scores[i]/TARGET_SCORE)*100);
+      const row = document.createElement('div');
+      row.className = 'score-progress-row';
+      row.innerHTML = `
+        <span class="label">${p.name}</span>
+        <span class="score-progress-bar"><span class="score-progress-fill" style="width:${pct}%"></span></span>
+        <span class="val">${state.scores[i]}</span>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  function endRound(){
+    render();
+    const bidBonusIdx = computeBidBonus();
+    if(bidBonusIdx !== -1){
+      state.scores[bidBonusIdx] += BID_BONUS;
+      state.pointsThisRound[bidBonusIdx] += BID_BONUS;
+    }
+    state.lastBidBonusIdx = bidBonusIdx;
+
+    const winnerIdx = state.scores.indexOf(Math.max(...state.scores));
+    if(Math.max(...state.scores) >= TARGET_SCORE){
+      showGameOver(winnerIdx);
+      return;
+    }
+    SFX.roundEnd();
+    if(bidBonusIdx !== -1) SFX.bidBonus();
+    const handWinnerIdx = state.tricksThisRound.indexOf(Math.max(...state.tricksThisRound));
+    state.lastHandWinner = handWinnerIdx;
+    document.getElementById('roundNumber').textContent = state.round;
+    document.getElementById('roundTitle').textContent = handWinnerIdx===0
+      ? 'You take the hand'
+      : `${PLAYERS[handWinnerIdx].name} takes the hand`;
+    let subtitle = handWinnerIdx===0
+      ? 'You lead the next hand.'
+      : `${PLAYERS[handWinnerIdx].name} leads the next hand.`;
+    if(bidBonusIdx !== -1){
+      const gap = state.bids[bidBonusIdx] - state.tricksThisRound[bidBonusIdx];
+      const bidderName = bidBonusIdx===0 ? 'You' : PLAYERS[bidBonusIdx].name;
+      const called = gap===0 ? 'called it exactly' : `landed within ${gap} of the bid`;
+      const verb = bidBonusIdx===0 ? 'earn' : 'earns';
+      subtitle += ` 🎯 ${bidderName} ${called} and ${verb} a +${BID_BONUS} bonus.`;
+    }
+    document.getElementById('roundSubtitle').textContent = subtitle;
+    buildResultsRows(document.getElementById('resultsTable'), { highlight: handWinnerIdx, showTricks: true, bidBonusIdx });
+    buildProgressBars(document.getElementById('progressTrack'));
+    showOverlay('roundOverlay');
+  }
+
+  function showGameOver(winnerIdx){
+    document.getElementById('gameOverTitle').textContent = winnerIdx===0 ? 'You win the game!' : `${PLAYERS[winnerIdx].name} wins the game`;
+    const bidBonusIdx = state.lastBidBonusIdx;
+    if(bidBonusIdx !== -1){
+      const bidderName = bidBonusIdx===0 ? 'You' : PLAYERS[bidBonusIdx].name;
+      const verb = bidBonusIdx===0 ? 'earned' : 'earned';
+      document.getElementById('gameOverSubtitle').textContent = `🎯 ${bidderName} nailed the final bid and ${verb} a +${BID_BONUS} bonus on that hand.`;
+    } else {
+      document.getElementById('gameOverSubtitle').textContent = '';
+    }
+    buildResultsRows(document.getElementById('gameOverResultsTable'), { highlight: winnerIdx, showTricks: false });
+    showOverlay('gameOverOverlay');
+    if(winnerIdx===0){
+      SFX.gameWin();
+      launchConfetti();
+    } else {
+      SFX.gameLose();
+    }
+  }
+
+  function launchConfetti(){
+    const colors = ['#FF6A4D','#E7C873','#DCEEEA','#8FB9BE','#F2E9D8'];
+    for(let i=0;i<44;i++){
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random()*100+'vw';
+      piece.style.background = colors[Math.floor(Math.random()*colors.length)];
+      piece.style.animationDuration = (2.2+Math.random()*1.4)+'s';
+      piece.style.animationDelay = (Math.random()*0.4)+'s';
+      piece.style.borderRadius = Math.random()<0.5 ? '50%' : '2px';
+      document.body.appendChild(piece);
+      setTimeout(()=>piece.remove(), 4200);
+    }
+  }
+
+  // ---------------- AI ----------------
+  function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function copiesPlayedOfRank(rank){
+    return state.seenCards.filter(c=>c.rank===rank).length;
+  }
+
+  // Is this the highest remaining copy of its suit — i.e. every higher card of
+  // that suit has already been played? If so it's a "safe" lead: nothing can
+  // beat it on a normal (non-tide) resolution.
+  function isTopRemainingOfSuit(card){
+    const val = compareValue(card.rank);
+    for(let rank=1; rank<=13; rank++){
+      if(rank===card.rank) continue;
+      if(compareValue(rank) > val){
+        const alreadyPlayed = state.seenCards.some(c=>c.suit===card.suit && c.rank===rank);
+        if(!alreadyPlayed) return false;
+      }
+    }
+    return true;
+  }
+
+  function aggressionFor(playerIdx){
+    const top = Math.max(...state.scores);
+    const gap = top - state.scores[playerIdx];
+    // behind in score -> play harder for tricks; comfortably ahead -> play a bit safer
+    return clamp(0.55 + gap*0.06, 0.45, 0.9);
+  }
+
+  function chooseLead(playerIdx, legal){
+    const bySuit = {};
+    for(const c of legal){ (bySuit[c.suit] = bySuit[c.suit] || []).push(c); }
+    // prefer a suit where we hold a guaranteed-safe top card, if one exists
+    for(const s in bySuit){
+      const top = bySuit[s].slice().sort((a,b)=>compareValue(b.rank)-compareValue(a.rank))[0];
+      if(isTopRemainingOfSuit(top) && Math.random() < 0.75) return top;
+    }
+    // else lead from our longest suit, a middling card, to fish out high cards
+    // while keeping our own top card in that suit back for later
+    let longestSuit=null, longestLen=0;
+    for(const s in bySuit){ if(bySuit[s].length > longestLen){ longestLen = bySuit[s].length; longestSuit = s; } }
+    const suitCards = bySuit[longestSuit].sort((a,b)=>compareValue(a.rank)-compareValue(b.rank));
+    if(suitCards.length >= 3) return suitCards[Math.floor(suitCards.length/2)];
+    // else lead low from our shortest suit to void it early
+    let shortestSuit=null, shortestLen=99;
+    for(const s in bySuit){ if(bySuit[s].length < shortestLen){ shortestLen = bySuit[s].length; shortestSuit = s; } }
+    return bySuit[shortestSuit].sort((a,b)=>compareValue(a.rank)-compareValue(b.rank))[0];
+  }
+
+  function chooseDiscard(legal){
+    const bySuit = {};
+    for(const c of legal){ (bySuit[c.suit] = bySuit[c.suit] || []).push(c); }
+    let minSuit=null, minLen=99;
+    for(const s in bySuit){ if(bySuit[s].length < minLen){ minLen = bySuit[s].length; minSuit = s; } }
+    return bySuit[minSuit].sort((a,b)=>compareValue(a.rank)-compareValue(b.rank))[0];
+  }
+
+  function aiChooseCard(playerIdx){
+    const legal = legalCards(playerIdx);
+    const tideCard = legal.find(c=>isRiptide(c));
+    const aggression = aggressionFor(playerIdx);
+
+    if(tideCard){
+      const tideAlreadyInTrick = state.trick.some(p=>isRiptide(p.card));
+      if(tideAlreadyInTrick){
+        // Someone's about to win with the tide card — playing our own cancels it
+        // (washout) and reverts to a normal trick. Worth it to deny a threat.
+        const leaderPlayer = state.trick.find(p=>isRiptide(p.card)).player;
+        const leaderIsThreat = state.scores[leaderPlayer] >= Math.max(...state.scores) - 2;
+        const chance = clamp((leaderIsThreat ? 0.75 : 0.45) + (aggression-0.6)*0.4, 0.25, 0.95);
+        if(Math.random() < chance) return tideCard;
+      } else {
+        // No tide card played yet this trick. Count how many copies of this rank
+        // are still unaccounted for (not in our hand, not already played) — those
+        // are the only cards that could wash us out, and only if held by a player
+        // who hasn't acted yet this trick.
+        const remainingUnseen = 4 - copiesPlayedOfRank(state.tideRank) - 1; // minus our own copy
+        const playersRemainingAfterMe = 3 - state.trick.length;
+        const riskScore = clamp((remainingUnseen * playersRemainingAfterMe) / 9, 0, 0.7);
+        const chance = clamp((1 - riskScore) + (aggression-0.6)*0.3, 0.35, 0.97);
+        if(Math.random() < chance) return tideCard;
+      }
+    }
+
+    if(state.trick.length===0){
+      return chooseLead(playerIdx, legal);
+    } else {
+      const led = state.ledSuit;
+      const canFollow = legal.some(c=>c.suit===led);
+      if(canFollow){
+        const followers = legal.filter(c=>c.suit===led).sort((a,b)=>compareValue(a.rank)-compareValue(b.rank));
+        const bestOnTable = Math.max(...state.trick.filter(p=>p.card.suit===led).map(p=>compareValue(p.card.rank)));
+        const winners = followers.filter(c=>compareValue(c.rank) > bestOnTable);
+        // this is likely the last-to-act player if trick is full after this play — grab it more readily
+        const isLastToAct = state.trick.length===3;
+        const winChance = isLastToAct ? Math.max(aggression, 0.85) : aggression;
+        if(winners.length && Math.random() < winChance) return winners[0];
+        return followers[0];
+      } else {
+        return chooseDiscard(legal);
+      }
+    }
+  }
+
+  function maybeAdvanceAI(){
+    if(state.locked || !state.tideRevealed) return;
+    if(state.trick.length===4){ afterTrickComplete(); return; }
+    const p = state.currentPlayer;
+    if(PLAYERS[p].isHuman){ render(); return; }
+    state.locked = true;
+    setTimeout(()=>{
+      const card = aiChooseCard(p);
+      playCard(p, card);
+      advanceTurn();
+      state.locked = false;
+      if(state.trick.length===4){ afterTrickComplete(); }
+      else { maybeAdvanceAI(); }
+    }, 550 + Math.random()*350);
+  }
+
+  function advanceTurn(){
+    state.currentPlayer = (state.currentPlayer+1) % 4;
+  }
+
+  function humanPlay(card){
+    if(state.locked || !state.tideRevealed) return;
+    if(state.currentPlayer !== 0) return;
+    const legal = legalCards(0);
+    if(!legal.some(c=>c.rank===card.rank && c.suit===card.suit)) return;
+    playCard(0, card);
+    advanceTurn();
+    if(state.trick.length===4){ afterTrickComplete(); }
+    else { maybeAdvanceAI(); }
+  }
+
+  // ---------------- Rendering ----------------
+  function setStatus(msg){
+    document.getElementById('statusBar').innerHTML = msg;
+  }
+
+  function cardEl(card, small){
+    const red = card.suit==='H' || card.suit==='D';
+    const div = document.createElement('div');
+    div.className = 'card' + (red ? ' red' : '') + (isRiptide(card) ? ' tide-hot' : '');
+    div.innerHTML = `
+      <div class="corner top">${RANK_LABEL[card.rank]}<br>${SUIT_SYMBOL[card.suit]}</div>
+      <div class="pip">${SUIT_SYMBOL[card.suit]}</div>
+      <div class="corner bottom">${RANK_LABEL[card.rank]}<br>${SUIT_SYMBOL[card.suit]}</div>
+    `;
+    return div;
+  }
+
+  function render(){
+    // scoreboard
+    const sb = document.getElementById('scoreboard');
+    sb.innerHTML = '';
+    PLAYERS.forEach((p,i)=>{
+      const pill = document.createElement('div');
+      pill.className = 'score-pill' + (i===0 ? ' you' : '');
+      pill.innerHTML = `${p.name} <span class="score-num">${state.scores[i]}</span>`;
+      sb.appendChild(pill);
+    });
+
+    // tide gauge
+    document.getElementById('tideRankDisplay').textContent = state.tideRevealed ? RANK_LABEL[state.tideRank] : '?';
+    document.getElementById('tideNote').textContent = state.tideRevealed
+      ? `Any ${RANK_LABEL[state.tideRank]} played this trick wins it outright.`
+      : `Revealed the moment this trick begins.`;
+
+    // opponent card backs
+    ['west','north','east'].forEach((seat,i)=>{
+      const pIdx = PLAYERS.findIndex(p=>p.seat===seat);
+      const container = document.getElementById('cards-'+seat);
+      container.innerHTML = '';
+      const n = state.revealHands ? Math.min(state.hands[pIdx].length, 13) : 0;
+      for(let k=0;k<n;k++){
+        const cb = document.createElement('div');
+        cb.className = 'cardback' + (state.justRevealed ? ' deal-in' : '');
+        if(state.justRevealed) cb.style.animationDelay = (k*35)+'ms';
+        container.appendChild(cb);
+      }
+      document.getElementById('seat-'+seat).classList.toggle('turn', state.revealHands && state.currentPlayer===pIdx && !isOverlayOpen());
+    });
+
+    // trick zone
+    const tz = document.getElementById('trickZone');
+    tz.innerHTML = '';
+    state.trick.forEach((entry, idx)=>{
+      const seat = PLAYERS[entry.player].seat;
+      const wrap = document.createElement('div');
+      wrap.className = 'played ' + seat;
+      wrap.appendChild(cardEl(entry.card));
+      tz.appendChild(wrap);
+      if(idx === state.trick.length-1){
+        wrap.classList.add('entering');
+        void wrap.offsetWidth; // force reflow so the transition catches the change
+        requestAnimationFrame(()=>{ wrap.classList.remove('entering'); });
+      }
+    });
+
+    // footer trick counter
+    document.querySelector('footer').firstChild.textContent = `Trick ${Math.min(state.trickNum,13)} / 13`;
+
+    // hand
+    const handEl = document.getElementById('hand');
+    handEl.innerHTML = '';
+    if(state.revealHands){
+      const legal = state.currentPlayer===0 ? legalCards(0) : [];
+      const isYourTurn = state.currentPlayer===0 && !state.locked && state.tideRevealed && state.trick.length<4;
+      state.hands[0].forEach((card,idx)=>{
+        const slot = document.createElement('div');
+        const playable = isYourTurn && legal.some(c=>c.rank===card.rank && c.suit===card.suit);
+        slot.className = 'card-slot' + (playable ? '' : ' disabled') + (state.justRevealed ? ' deal-in' : '');
+        if(state.justRevealed) slot.style.animationDelay = (idx*35)+'ms';
+        slot.appendChild(cardEl(card));
+        slot.addEventListener('click', ()=>{ if(playable) humanPlay(card); });
+        handEl.appendChild(slot);
+      });
+    }
+  }
+
+  function isOverlayOpen(){
+    return !document.getElementById('roundOverlay').classList.contains('hidden') ||
+           !document.getElementById('gameOverOverlay').classList.contains('hidden') ||
+           !document.getElementById('overlay').classList.contains('hidden');
+  }
+
+  // ---------------- Wire up ----------------
+  document.getElementById('muteBtn').addEventListener('click', ()=>{
+    const next = !SFX.isMuted();
+    SFX.setMuted(next);
+    document.getElementById('muteBtn').textContent = next ? '🔇' : '🔊';
+  });
+
+  document.getElementById('startBtn').addEventListener('click', ()=>{
+    SFX.unlock();
+    SFX.startAmbience();
+    SFX.click();
+    document.getElementById('overlay').classList.add('hidden');
+    assignAINames();
+    state = newGameState();
+    startRound();
+  });
+
+  document.getElementById('nextRoundBtn').addEventListener('click', ()=>{
+    SFX.click();
+    document.getElementById('roundOverlay').classList.add('hidden');
+    startRound();
+  });
+
+  document.getElementById('restartBtn').addEventListener('click', ()=>{
+    SFX.click();
+    document.getElementById('gameOverOverlay').classList.add('hidden');
+    assignAINames();
+    state = newGameState();
+    startRound();
+  });
+
+  // initial idle render behind the welcome modal
+  assignAINames();
+  state = newGameState();
+  render();
+})();
+</script>
+</body>
+</html>
