@@ -55,9 +55,11 @@
     border:1px solid rgba(255,255,255,0.12);
     border-radius:20px; padding:6px 14px;
     font-size:12px; display:flex; align-items:center; gap:8px;
+    max-width:150px;
   }
   .score-pill.you{border-color:var(--coral); background:rgba(255,106,77,0.1);}
-  .score-num{font-family:'Fraunces',serif; font-weight:700; font-size:16px; color:var(--gold);}
+  .pill-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .score-num{font-family:'Fraunces',serif; font-weight:700; font-size:16px; color:var(--gold); flex-shrink:0;}
 
   /* ---------- Tide gauge ---------- */
   .tide-gauge{
@@ -235,6 +237,12 @@
     display:flex; justify-content:center;
     min-height:110px;
     padding:0 12px;
+    transition: transform 0.35s ease;
+  }
+  .hand-wrap.bidding-peek{
+    position:fixed; left:0; right:0; bottom:0; z-index:12;
+    max-width:none; margin:0; padding:10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background:linear-gradient(180deg, transparent, rgba(3,15,22,0.92) 35%);
   }
   .hand{
     display:flex; justify-content:center;
@@ -366,19 +374,25 @@
     padding:20px;
   }
   .overlay.hidden{ display:none; }
-  .overlay.bid-overlay-backdrop{ background:rgba(3,15,22,0.6); }
+  .overlay.bid-overlay-backdrop{ background:rgba(3,15,22,0.55); align-items:flex-start; padding-top:5vh; }
+  .bid-overlay-backdrop .modal{ max-height:76vh; }
   .modal{
     background:linear-gradient(180deg, #0D4552, #082E39);
     border:1px solid rgba(255,255,255,0.12);
     border-radius:14px; padding:32px 30px; max-width:420px; text-align:center;
     box-shadow:0 30px 60px rgba(0,0,0,0.6);
-    max-height:88vh; overflow-y:auto;
+    max-height:88vh;
+    display:flex; flex-direction:column;
+  }
+  .modal-scroll{
+    overflow-y:auto; flex:1 1 auto; min-height:0;
     scrollbar-width:thin; scrollbar-color:rgba(231,200,115,0.4) rgba(255,255,255,0.05);
   }
-  .modal::-webkit-scrollbar{ width:8px; }
-  .modal::-webkit-scrollbar-track{ background:rgba(255,255,255,0.05); border-radius:8px; }
-  .modal::-webkit-scrollbar-thumb{ background:rgba(231,200,115,0.4); border-radius:8px; }
-  .modal::-webkit-scrollbar-thumb:hover{ background:rgba(231,200,115,0.6); }
+  .modal-scroll::-webkit-scrollbar{ width:8px; }
+  .modal-scroll::-webkit-scrollbar-track{ background:rgba(255,255,255,0.05); border-radius:8px; }
+  .modal-scroll::-webkit-scrollbar-thumb{ background:rgba(231,200,115,0.4); border-radius:8px; }
+  .modal-scroll::-webkit-scrollbar-thumb:hover{ background:rgba(231,200,115,0.6); }
+  .modal > button.primary{ flex-shrink:0; }
   @keyframes modalPop{
     0%{ transform:scale(0.86) translateY(10px); opacity:0; }
     100%{ transform:scale(1) translateY(0); opacity:1; }
@@ -481,18 +495,93 @@
   }
 
   @media (max-width:640px){
-    h1{font-size:22px;}
+    header{ padding:10px 14px 6px; gap:8px; }
+    .title-block{ gap:8px; }
+    h1{font-size:18px;}
+    .subtitle{ display:none; }
+    .scoreboard{ gap:5px; }
+    .score-pill{ padding:3px 8px; font-size:10px; max-width:88px; gap:4px; }
+    .pill-name{ max-width:58px; }
+    .score-num{ font-size:12px; }
+    .mute-btn{ width:28px; height:28px; font-size:12px; }
+
+    .tide-gauge{ padding:6px 14px; margin:0 auto 4px; }
+    .tide-label{ font-size:8.5px; margin-bottom:4px; }
+    .tide-rank{ width:38px; height:38px; font-size:16px; }
+    .tide-note{ font-size:9.5px; margin-top:5px; min-height:0; }
+
+    .bid-tracker{ margin:0 auto 8px; }
+    .bid-chip{ padding:2px 7px; font-size:9.5px; }
+
+    .table-wrap{ margin-top:4px; padding:0 10px; }
     .table{max-height:340px;}
+
+    .status-bar{ margin-top:8px; min-height:0; font-size:10.5px; padding:2px 14px; }
+
+    .hand-wrap{ margin:10px auto 8px; min-height:78px; }
     .hand .card-slot{width:46px; height:66px; margin-left:-18px;}
+
+    footer{ padding:8px 20px 16px; font-size:8.5px; }
   }
 </style>
 </head>
 <body>
 
-<div class="tide-lines"><svg viewBox="0 0 1000 400" preserveAspectRatio="none">
-  <path d="M0,60 Q250,10 500,60 T1000,60" stroke="#DCEEEA" fill="none" stroke-width="1"/>
-  <path d="M0,140 Q250,90 500,140 T1000,140" stroke="#DCEEEA" fill="none" stroke-width="1"/>
-  <path d="M0,320 Q250,270 500,320 T1000,320" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+<div class="tide-lines"><svg viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
+  <!-- gentle water lines -->
+  <path d="M0,40 Q100,10 200,40 T400,40" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+  <path d="M0,150 Q100,120 200,150 T400,150" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+  <path d="M0,500 Q100,470 200,500 T400,500" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+  <path d="M0,760 Q100,730 200,760 T400,760" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+
+  <!-- compass rose, upper right -->
+  <g transform="translate(330,110)" stroke="#DCEEEA" fill="none" stroke-width="1">
+    <circle r="38"/>
+    <circle r="4"/>
+    <line x1="0" y1="-38" x2="0" y2="38"/>
+    <line x1="-38" y1="0" x2="38" y2="0"/>
+    <line x1="-27" y1="-27" x2="27" y2="27"/>
+    <line x1="-27" y1="27" x2="27" y2="-27"/>
+    <path d="M0,-38 L6,-14 L0,-20 L-6,-14 Z" fill="#DCEEEA" stroke="none"/>
+  </g>
+
+  <!-- lighthouse, lower left -->
+  <g transform="translate(55,700)" stroke="#DCEEEA" fill="none" stroke-width="1">
+    <path d="M-10,0 L10,0 L7,-70 L-7,-70 Z"/>
+    <path d="M-7,-70 L-12,-82 L12,-82 L7,-70 Z"/>
+    <line x1="-12" y1="-82" x2="-12" y2="-92"/>
+    <line x1="12" y1="-82" x2="12" y2="-92"/>
+    <line x1="-12" y1="-92" x2="12" y2="-92"/>
+    <path d="M-3,-92 L-3,-100 L3,-100 L3,-92"/>
+    <line x1="-14" y1="0" x2="14" y2="0"/>
+    <line x1="-16" y1="6" x2="16" y2="6"/>
+  </g>
+
+  <!-- sailboats -->
+  <g transform="translate(90,220)" stroke="#DCEEEA" fill="none" stroke-width="1">
+    <path d="M-24,10 Q0,22 24,10 L18,16 Q0,26 -18,16 Z"/>
+    <line x1="0" y1="10" x2="0" y2="-34"/>
+    <path d="M0,-34 L0,4 L-22,4 Z"/>
+  </g>
+  <g transform="translate(320,610) scale(0.8)" stroke="#DCEEEA" fill="none" stroke-width="1">
+    <path d="M-24,10 Q0,22 24,10 L18,16 Q0,26 -18,16 Z"/>
+    <line x1="0" y1="10" x2="0" y2="-34"/>
+    <path d="M0,-34 L0,4 L22,4 Z"/>
+  </g>
+
+  <!-- anchor -->
+  <g transform="translate(345,430)" stroke="#DCEEEA" fill="none" stroke-width="1">
+    <circle cx="0" cy="-22" r="6"/>
+    <line x1="0" y1="-16" x2="0" y2="20"/>
+    <path d="M-16,6 Q0,26 16,6"/>
+    <line x1="-16" y1="-2" x2="16" y2="-2"/>
+    <path d="M-16,6 L-22,-2 M16,6 L22,-2"/>
+  </g>
+
+  <!-- gulls -->
+  <path d="M30,90 Q36,84 42,90 Q48,84 54,90" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+  <path d="M120,340 Q125,335 130,340 Q135,335 140,340" stroke="#DCEEEA" fill="none" stroke-width="1"/>
+  <path d="M260,260 Q266,254 272,260 Q278,254 284,260" stroke="#DCEEEA" fill="none" stroke-width="1"/>
 </svg></div>
 
 <header>
@@ -524,7 +613,7 @@
 
 <div class="status-bar" id="statusBar">Dealing...</div>
 
-<div class="hand-wrap">
+<div class="hand-wrap" id="handWrap">
   <div class="hand" id="hand"></div>
 </div>
 
@@ -532,68 +621,71 @@
 
 <div class="overlay" id="overlay">
   <div class="modal modal-wide">
-    <div class="modal-eyebrow">Trick-taking · 4 players</div>
-    <h2>Riptide</h2>
-    <p class="modal-intro">You against three currents. No partnerships — just your cards, your nerve, and the tide.</p>
+    <div class="modal-scroll">
+      <div class="modal-eyebrow">Trick-taking · 4 players</div>
+      <h2>Riptide</h2>
+      <p class="modal-intro">You against three currents. No partnerships — just your cards, your nerve, and the tide.</p>
 
-    <div class="rule-list">
-      <div class="rule-item">
-        <div class="rule-icon">🎯</div>
-        <div class="rule-copy">
-          <div class="rule-title">Bid your tricks</div>
-          <div class="rule-desc">Once your hand is dealt, predict how many of the 13 tricks you'll win. Closest to your bid <b>without going over</b> earns a <b>+3 point</b> bonus at hand's end.</div>
+      <div class="rule-list">
+        <div class="rule-item">
+          <div class="rule-icon">🎯</div>
+          <div class="rule-copy">
+            <div class="rule-title">Bid your tricks</div>
+            <div class="rule-desc">Once your hand is dealt, predict how many of the 13 tricks you'll win. Closest to your bid <b>without going over</b> earns a <b>+3 point</b> bonus at hand's end.</div>
+          </div>
         </div>
-      </div>
-      <div class="rule-item">
-        <div class="rule-icon">♠</div>
-        <div class="rule-copy">
-          <div class="rule-title">Follow suit</div>
-          <div class="rule-desc">Highest card of the suit led wins the trick — unless the tide turns.</div>
+        <div class="rule-item">
+          <div class="rule-icon">♠</div>
+          <div class="rule-copy">
+            <div class="rule-title">Follow suit</div>
+            <div class="rule-desc">Highest card of the suit led wins the trick — unless the tide turns.</div>
+          </div>
         </div>
-      </div>
-      <div class="rule-item">
-        <div class="rule-icon">🌊</div>
-        <div class="rule-copy">
-          <div class="rule-title">The tide turns</div>
-          <div class="rule-desc">Every trick has a secret rank, shuffled fresh each hand and revealed only when the trick begins. Any card of that rank <b>wins outright</b>, no matter what was led.</div>
+        <div class="rule-item">
+          <div class="rule-icon">🌊</div>
+          <div class="rule-copy">
+            <div class="rule-title">The tide turns</div>
+            <div class="rule-desc">Every trick has a secret rank, shuffled fresh each hand and revealed only when the trick begins. Any card of that rank <b>wins outright</b>, no matter what was led.</div>
+          </div>
         </div>
-      </div>
-      <div class="rule-item">
-        <div class="rule-icon">↺</div>
-        <div class="rule-copy">
-          <div class="rule-title">Washout</div>
-          <div class="rule-desc">A second tide card played in the same trick cancels the first — the tide washes out and the trick reverts to normal rules.</div>
+        <div class="rule-item">
+          <div class="rule-icon">↺</div>
+          <div class="rule-copy">
+            <div class="rule-title">Washout</div>
+            <div class="rule-desc">A second tide card played in the same trick cancels the first — the tide washes out and the trick reverts to normal rules.</div>
+          </div>
         </div>
-      </div>
-      <div class="rule-item">
-        <div class="rule-icon">★</div>
-        <div class="rule-copy">
-          <div class="rule-title">Scoring</div>
-          <div class="rule-desc"><b>1 point</b> for a normal trick, <b>2 points</b> if you win it with the tide card. First to <b>21</b> wins.</div>
+        <div class="rule-item">
+          <div class="rule-icon">★</div>
+          <div class="rule-copy">
+            <div class="rule-title">Scoring</div>
+            <div class="rule-desc"><b>1 point</b> for a normal trick, <b>2 points</b> if you win it with the tide card. First to <b>21</b> wins.</div>
+          </div>
         </div>
-      </div>
-      <div class="rule-item">
-        <div class="rule-icon">➜</div>
-        <div class="rule-copy">
-          <div class="rule-title">Leading the next hand</div>
-          <div class="rule-desc">Whoever wins the most tricks in a hand leads the next one — an edge worth playing for.</div>
+        <div class="rule-item">
+          <div class="rule-icon">➜</div>
+          <div class="rule-copy">
+            <div class="rule-title">Leading the next hand</div>
+            <div class="rule-desc">Whoever wins the most tricks in a hand leads the next one — an edge worth playing for.</div>
+          </div>
         </div>
       </div>
     </div>
-
     <button class="primary" id="startBtn">Deal me in</button>
   </div>
 </div>
 
 <div class="overlay hidden bid-overlay-backdrop" id="bidOverlay">
   <div class="modal modal-wide">
-    <div class="modal-eyebrow">Hand <span id="bidHandNumber">1</span> · Bidding</div>
-    <h2>How many tricks will you take?</h2>
-    <p class="modal-intro">Cards are dealt. Predict your trick count for this hand — closest to your bid <b>without going over</b> earns a bonus.</p>
-    <div class="bid-stepper">
-      <button class="bid-step-btn" id="bidMinus" type="button">−</button>
-      <div class="bid-value" id="bidValue">3</div>
-      <button class="bid-step-btn" id="bidPlus" type="button">+</button>
+    <div class="modal-scroll">
+      <div class="modal-eyebrow">Hand <span id="bidHandNumber">1</span> · Bidding</div>
+      <h2>How many tricks will you take?</h2>
+      <p class="modal-intro">Cards are dealt. Predict your trick count for this hand — closest to your bid <b>without going over</b> earns a bonus.</p>
+      <div class="bid-stepper">
+        <button class="bid-step-btn" id="bidMinus" type="button">−</button>
+        <div class="bid-value" id="bidValue">3</div>
+        <button class="bid-step-btn" id="bidPlus" type="button">+</button>
+      </div>
     </div>
     <button class="primary" id="lockBidBtn">Lock in bid</button>
   </div>
@@ -601,31 +693,37 @@
 
 <div class="overlay hidden" id="bidSummaryOverlay">
   <div class="modal modal-wide">
-    <div class="modal-eyebrow">Hand <span id="bidSummaryHandNumber">1</span> · Bids locked in</div>
-    <h2>Everyone's called their number</h2>
-    <p class="modal-intro">Closest to your own bid without going over wins a +3 bonus at hand's end.</p>
-    <div class="results-table" id="bidSummaryTable"></div>
+    <div class="modal-scroll">
+      <div class="modal-eyebrow">Hand <span id="bidSummaryHandNumber">1</span> · Bids locked in</div>
+      <h2>Everyone's called their number</h2>
+      <p class="modal-intro">Closest to your own bid without going over wins a +3 bonus at hand's end.</p>
+      <div class="results-table" id="bidSummaryTable"></div>
+    </div>
     <button class="primary" id="startHandBtn">Start the hand</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="roundOverlay">
   <div class="modal modal-wide">
-    <div class="modal-eyebrow">Hand <span id="roundNumber">1</span> complete</div>
-    <h2 id="roundTitle">Hand complete</h2>
-    <p class="modal-intro" id="roundSubtitle"></p>
-    <div class="results-table" id="resultsTable"></div>
-    <div class="progress-block" id="progressTrack"></div>
+    <div class="modal-scroll">
+      <div class="modal-eyebrow">Hand <span id="roundNumber">1</span> complete</div>
+      <h2 id="roundTitle">Hand complete</h2>
+      <p class="modal-intro" id="roundSubtitle"></p>
+      <div class="results-table" id="resultsTable"></div>
+      <div class="progress-block" id="progressTrack"></div>
+    </div>
     <button class="primary" id="nextRoundBtn">Deal next hand</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="gameOverOverlay">
   <div class="modal modal-wide">
-    <div class="modal-eyebrow">Game over</div>
-    <h2 id="gameOverTitle">Game over</h2>
-    <p class="modal-intro" id="gameOverSubtitle"></p>
-    <div class="results-table" id="gameOverResultsTable"></div>
+    <div class="modal-scroll">
+      <div class="modal-eyebrow">Game over</div>
+      <h2 id="gameOverTitle">Game over</h2>
+      <p class="modal-intro" id="gameOverSubtitle"></p>
+      <div class="results-table" id="gameOverResultsTable"></div>
+    </div>
     <button class="primary" id="restartBtn">Play again</button>
   </div>
 </div>
@@ -955,6 +1053,7 @@
     document.getElementById('bidHandNumber').textContent = state.round;
     document.getElementById('bidValue').textContent = value;
     showOverlay('bidOverlay');
+    document.getElementById('handWrap').classList.add('bidding-peek');
 
     const minusBtn = document.getElementById('bidMinus');
     const plusBtn = document.getElementById('bidPlus');
@@ -972,6 +1071,7 @@
       state.bids[0] = value;
       for(let i=1;i<4;i++){ state.bids[i] = estimateAIBid(i); }
       document.getElementById('bidOverlay').classList.add('hidden');
+      document.getElementById('handWrap').classList.remove('bidding-peek');
       showBidSummary(callback);
     };
   }
@@ -1469,7 +1569,7 @@
     PLAYERS.forEach((p,i)=>{
       const pill = document.createElement('div');
       pill.className = 'score-pill' + (i===0 ? ' you' : '');
-      pill.innerHTML = `${p.name} <span class="score-num">${state.scores[i]}</span>`;
+      pill.innerHTML = `<span class="pill-name">${p.name}</span><span class="score-num">${state.scores[i]}</span>`;
       sb.appendChild(pill);
     });
 
@@ -1527,10 +1627,11 @@
     visibleHand.forEach((card,idx)=>{
       const slot = document.createElement('div');
       const playable = isYourTurn && legal.some(c=>c.rank===card.rank && c.suit===card.suit);
+      const showDisabled = state.tideRevealed && !playable; // only dim during actual trick play
       const isRecommended = !!suggestion && card.rank===suggestion.rank && card.suit===suggestion.suit;
       const isNewestDeal = !state.revealHands && idx === visibleHand.length-1;
       slot.className = 'card-slot'
-        + (playable ? '' : ' disabled')
+        + (showDisabled ? ' disabled' : '')
         + ((state.justRevealed || isNewestDeal) ? ' deal-in' : '')
         + (isRecommended ? ' recommended' : '');
       if(state.justRevealed) slot.style.animationDelay = (idx*35)+'ms';
