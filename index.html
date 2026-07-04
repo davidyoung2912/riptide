@@ -92,6 +92,20 @@
   }
   .tide-note{font-size:11px; color:#B9D8D3; margin-top:6px; min-height:16px;}
 
+  /* ---------- Bid tracker (live during play) ---------- */
+  .bid-tracker{
+    display:flex; justify-content:center; gap:8px; flex-wrap:wrap;
+    max-width:900px; margin:0 auto 10px; padding:0 16px; min-height:1px;
+  }
+  .bid-chip{
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+    border-radius:14px; padding:4px 11px; font-size:11px; color:#B9D8D3;
+    display:flex; align-items:center; gap:5px; white-space:nowrap;
+  }
+  .bid-chip.you{ border-color:var(--coral); background:rgba(255,106,77,0.08); }
+  .bid-chip .progress-num{ font-family:'Fraunces',serif; font-weight:700; color:var(--gold); }
+  .bid-chip.over .progress-num{ color:var(--coral); }
+
   /* ---------- Table ---------- */
   .table-wrap{
     position:relative; z-index:2;
@@ -142,7 +156,7 @@
     position:absolute; width:52px; height:74px;
     transition: all 0.45s cubic-bezier(.2,.8,.2,1);
   }
-  .played.you{ bottom:32%; left:50%; transform:translate(-50%,0); }
+  .played.you{ bottom:4%; left:50%; transform:translate(-50%,0); }
   .played.west{ left:28%; top:50%; transform:translate(-50%,-50%) rotate(-8deg); }
   .played.north{ top:28%; left:50%; transform:translate(-50%,0); }
   .played.east{ right:28%; top:50%; transform:translate(50%,-50%) rotate(8deg); }
@@ -160,6 +174,30 @@
     50%{ box-shadow:0 0 0 8px rgba(143,185,190,0.25); }
     100%{ box-shadow:0 0 0 0 rgba(143,185,190,0); }
   }
+
+  .played.led .card{ box-shadow:0 0 0 2px rgba(143,185,190,0.85), 0 3px 8px rgba(0,0,0,0.45); }
+  .played.led::before{
+    content:'LEAD'; position:absolute; top:-15px; left:50%; transform:translateX(-50%);
+    font-size:8px; letter-spacing:1.5px; color:#DCEEEA; background:rgba(20,99,110,0.92);
+    padding:2px 6px; border-radius:5px; font-family:'Space Mono',monospace; z-index:3;
+    white-space:nowrap;
+  }
+
+  .played.dim .card{ opacity:0.4; filter:grayscale(0.35); transition: opacity 0.35s ease, filter 0.35s ease; }
+
+  .winner-banner{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(0.7);
+    background:rgba(7,36,54,0.94); border:1px solid rgba(231,200,115,0.45);
+    color:var(--gold); font-family:'Fraunces',serif; font-weight:700; font-size:14px;
+    padding:11px 20px; border-radius:11px; white-space:nowrap; z-index:9;
+    box-shadow:0 10px 26px rgba(0,0,0,0.55); pointer-events:none; opacity:0;
+    animation: bannerPop 0.3s ease forwards, bannerHold 1.85s linear 0.3s forwards, bannerFade 0.35s ease 2.15s forwards;
+  }
+  .winner-banner.riptide{ border-color:var(--coral); color:var(--coral); }
+  .winner-banner.washed{ border-color:#8FB9BE; color:#DCEEEA; }
+  @keyframes bannerPop{ 0%{ transform:translate(-50%,-50%) scale(0.7); opacity:0; } 100%{ transform:translate(-50%,-50%) scale(1); opacity:1; } }
+  @keyframes bannerHold{ from{ opacity:1; } to{ opacity:1; } }
+  @keyframes bannerFade{ from{ opacity:1; } to{ opacity:0; } }
 
   /* ---------- Card look ---------- */
   .card{
@@ -206,12 +244,25 @@
   .hand .card-slot:active{ transform:translateY(-4px) scale(0.94); }
   .hand .card-slot.disabled:hover{ transform:none; }
 
+  @keyframes cardWiggle{
+    0%,100%{ transform:rotate(0deg) translateY(0); }
+    20%{ transform:rotate(-4deg) translateY(-4px); }
+    40%{ transform:rotate(3deg) translateY(-6px); }
+    60%{ transform:rotate(-3deg) translateY(-4px); }
+    80%{ transform:rotate(2deg) translateY(-2px); }
+  }
+  .hand .card-slot.recommended{ animation: cardWiggle 1.8s ease-in-out infinite; animation-delay:0.8s; }
+  .hand .card-slot.recommended:hover{ animation-play-state:paused; }
+  .hand .card-slot.recommended .card{
+    box-shadow:0 0 0 2px rgba(231,200,115,0.55), 0 6px 14px rgba(0,0,0,0.4);
+  }
+
   /* ---------- Score popup ---------- */
   .score-popup{
     position:absolute; left:50%; top:0; transform:translate(-50%,0);
     font-family:'Fraunces',serif; font-weight:700; font-size:15px;
     color:var(--gold); pointer-events:none;
-    animation: floatUp 0.95s ease-out forwards;
+    animation: floatUp 1.35s ease-out forwards;
     text-shadow:0 2px 6px rgba(0,0,0,0.6);
     z-index:5;
   }
@@ -453,6 +504,8 @@
   <div class="tide-note" id="tideNote">Any card of this rank wins the trick outright.</div>
 </div>
 
+<div class="bid-tracker" id="bidTracker"></div>
+
 <div class="table-wrap">
   <div class="table" id="table">
     <div class="seat west" id="seat-west"><div class="cardback-row" id="cards-west"></div><div class="name" id="seatname-west">West</div></div>
@@ -540,6 +593,16 @@
   </div>
 </div>
 
+<div class="overlay hidden" id="bidSummaryOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-eyebrow">Hand <span id="bidSummaryHandNumber">1</span> · Bids locked in</div>
+    <h2>Everyone's called their number</h2>
+    <p class="modal-intro">Closest to your own bid without going over wins a +3 bonus at hand's end.</p>
+    <div class="results-table" id="bidSummaryTable"></div>
+    <button class="primary" id="startHandBtn">Start the hand</button>
+  </div>
+</div>
+
 <div class="overlay hidden" id="roundOverlay">
   <div class="modal modal-wide">
     <div class="modal-eyebrow">Hand <span id="roundNumber">1</span> complete</div>
@@ -575,6 +638,15 @@
   ];
   const TARGET_SCORE = 21;
   const BID_BONUS = 3; // awarded for closest-without-going-over trick bid each hand
+
+  // "You" takes a base-form verb ("lead", "take") while everyone else takes the
+  // third-person singular ("leads", "takes") — these two helpers keep every status
+  // message grammatically correct without repeating the ternary everywhere.
+  function nameFor(idx){ return idx===0 ? 'You' : PLAYERS[idx].name; }
+  function verbFor(idx, thirdPerson){
+    if(idx===0){ return thirdPerson.endsWith('s') ? thirdPerson.slice(0,-1) : thirdPerson; }
+    return thirdPerson;
+  }
 
   const FUNNY_NAMES = [
     'Salty Pete', 'Captain Kelp', 'Barnacle Bill', 'Reef Rick', 'Sandy Shores',
@@ -719,6 +791,8 @@
       lastHandWinner:0, // who leads the next hand; defaults to You for the very first hand
       bids:[null,null,null,null],
       lastBidBonusIdx:-1,
+      dealProgress:[0,0,0,0],
+      cachedSuggestion:null,
     };
   }
 
@@ -759,7 +833,7 @@
       setStatus(`Hand ${state.round} dealt.`);
       showBidOverlay(()=>{
         revealTideForTrick(()=>{
-          setStatus(`${PLAYERS[state.leader].name} leads.`);
+          setStatus(`${nameFor(state.leader)} ${verbFor(state.leader,'leads')}.`);
           maybeAdvanceAI();
         });
       });
@@ -778,6 +852,9 @@
   function playShuffleAndDeal(leaderIdx, callback){
     const fx = document.getElementById('dealFx');
     fx.innerHTML = '';
+    state.dealProgress = [0,0,0,0];
+    render();
+
     const deck = document.createElement('div');
     deck.className = 'deck-stack shuffling';
     for(let i=0;i<6;i++){
@@ -790,7 +867,7 @@
     }
     fx.appendChild(deck);
 
-    const shuffleInterval = setInterval(()=>{ SFX.shuffleTick(); }, 130);
+    const shuffleInterval = setInterval(()=>{ SFX.shuffleTick(); }, 143);
 
     setTimeout(()=>{
       clearInterval(shuffleInterval);
@@ -799,7 +876,7 @@
         fx.innerHTML = '';
         if(callback) callback();
       });
-    }, 900);
+    }, 1275);
   }
 
   function dealFlourish(leaderIdx, done){
@@ -823,19 +900,25 @@
         done();
         return;
       }
-      const pos = seatFxPosition(PLAYERS[order[i]].seat);
+      const pIdx = order[i];
+      const pos = seatFxPosition(PLAYERS[pIdx].seat);
       flyer.style.transition = 'none';
       flyer.style.left = '50%';
       flyer.style.top = '50%';
       flyer.style.transform = 'translate(-50%,-50%) scale(1)';
       void flyer.offsetWidth; // reflow to restart transition
-      flyer.style.transition = 'left 0.09s linear, top 0.09s linear, transform 0.09s linear';
+      flyer.style.transition = 'left 0.12s ease, top 0.12s ease, transform 0.12s ease';
       flyer.style.left = pos.left;
       flyer.style.top = pos.top;
       flyer.style.transform = 'translate(-50%,-50%) scale(0.7)';
       SFX.dealTick();
       i++;
-      setTimeout(step, 34);
+      // reveal the card in that player's hand right as it "lands"
+      setTimeout(()=>{
+        state.dealProgress[pIdx] = Math.min(13, state.dealProgress[pIdx] + 1);
+        render();
+      }, 112);
+      setTimeout(step, 143);
     }
     step();
   }
@@ -883,8 +966,33 @@
       state.bids[0] = value;
       for(let i=1;i<4;i++){ state.bids[i] = estimateAIBid(i); }
       document.getElementById('bidOverlay').classList.add('hidden');
-      const summary = PLAYERS.map((p,i)=> `${i===0?'You':p.name} ${state.bids[i]}`).join(' · ');
-      setStatus(`Bids are in — ${summary}. Watching the tide...`);
+      showBidSummary(callback);
+    };
+  }
+
+  function showBidSummary(callback){
+    document.getElementById('bidSummaryHandNumber').textContent = state.round;
+    const table = document.getElementById('bidSummaryTable');
+    table.innerHTML = '';
+    const order = [0,1,2,3].slice().sort((a,b)=> state.bids[b]-state.bids[a]);
+    order.forEach(i=>{
+      const isYou = i===0;
+      const row = document.createElement('div');
+      row.className = 'results-row';
+      row.innerHTML = `
+        <span class="rank-icon"></span>
+        <span class="player-name${isYou ? ' you' : ''}">${PLAYERS[i].name}${isYou ? ' <span class="you-badge">You</span>' : ''}</span>
+        <span class="tricks"></span>
+        <span class="points">${state.bids[i]}<span class="delta">tricks bid</span></span>
+      `;
+      table.appendChild(row);
+    });
+    showOverlay('bidSummaryOverlay');
+    const startBtn = document.getElementById('startHandBtn');
+    startBtn.onclick = ()=>{
+      SFX.click();
+      document.getElementById('bidSummaryOverlay').classList.add('hidden');
+      setStatus('Watching the tide...');
       if(callback) callback();
     };
   }
@@ -978,15 +1086,16 @@
     state.tricksThisRound[winner] += 1;
     state.pointsThisRound[winner] += pts;
     spawnScorePopup(winner, pts, wonByRiptide);
+    announceTrickWinner(winner, wonByRiptide, washedOut, pts);
     if(washedOut){
       SFX.washout();
-      setStatus(`🌊 Tide washed out — cards cancel! ${PLAYERS[winner].name} takes it on a normal trick (+1).`);
+      setStatus(`🌊 Tide washed out — cards cancel! ${nameFor(winner)} ${verbFor(winner,'takes')} it on a normal trick (+1).`);
     } else if(wonByRiptide){
       SFX.riptideWin();
-      setStatus(`${PLAYERS[winner].name} takes the trick with the tide card! +2`);
+      setStatus(`${nameFor(winner)} ${verbFor(winner,'takes')} the trick with the tide card! +2`);
     } else {
       SFX.trickWin();
-      setStatus(`${PLAYERS[winner].name} takes the trick (+1).`);
+      setStatus(`${nameFor(winner)} ${verbFor(winner,'takes')} the trick (+1).`);
     }
 
     setTimeout(()=>{
@@ -1004,12 +1113,12 @@
         } else {
           setStatus(`Watching the tide for trick ${state.trickNum}...`);
           revealTideForTrick(()=>{
-            setStatus(`${PLAYERS[winner].name} leads trick ${state.trickNum}.`);
+            setStatus(`${nameFor(winner)} ${verbFor(winner,'leads')} trick ${state.trickNum}.`);
             maybeAdvanceAI();
           });
         }
-      }, 480);
-    }, 900);
+      }, 650);
+    }, 2500);
   }
 
   function highlightWinningCard(winner, wonByRiptide){
@@ -1025,7 +1134,7 @@
     popup.className = 'score-popup' + (wonByRiptide ? ' riptide' : '');
     popup.textContent = '+'+pts;
     el.appendChild(popup);
-    setTimeout(()=>{ popup.remove(); }, 950);
+    setTimeout(()=>{ popup.remove(); }, 1350);
   }
 
   function highlightWashout(riptideEntries){
@@ -1033,6 +1142,27 @@
       const el = document.querySelector(`.played.${PLAYERS[entry.player].seat}`);
       if(el) el.classList.add('washed-out');
     }
+  }
+
+  function announceTrickWinner(winner, wonByRiptide, washedOut, pts){
+    const winningSeat = PLAYERS[winner].seat;
+    document.querySelectorAll('.played').forEach(el=>{
+      if(!el.classList.contains(winningSeat)) el.classList.add('dim');
+    });
+    const zone = document.getElementById('trickZone');
+    if(!zone) return;
+    const banner = document.createElement('div');
+    banner.className = 'winner-banner' + (wonByRiptide ? ' riptide' : '') + (washedOut ? ' washed' : '');
+    const name = nameFor(winner);
+    const verb = verbFor(winner,'wins');
+    let label = washedOut
+      ? `🌊 Washout — ${name} ${verb} the trick`
+      : wonByRiptide
+        ? `🎯 Tide card! ${name} ${verb} the trick`
+        : `${name} ${verb} the trick`;
+    banner.textContent = `${label} +${pts}`;
+    zone.appendChild(banner);
+    setTimeout(()=>{ banner.remove(); }, 2500);
   }
 
   function collectTrick(){
@@ -1278,7 +1408,11 @@
     if(state.locked || !state.tideRevealed) return;
     if(state.trick.length===4){ afterTrickComplete(); return; }
     const p = state.currentPlayer;
-    if(PLAYERS[p].isHuman){ render(); return; }
+    if(PLAYERS[p].isHuman){
+      state.cachedSuggestion = aiChooseCard(0);
+      render();
+      return;
+    }
     state.locked = true;
     setTimeout(()=>{
       const card = aiChooseCard(p);
@@ -1333,6 +1467,8 @@
       sb.appendChild(pill);
     });
 
+    renderBidTracker();
+
     // tide gauge
     document.getElementById('tideRankDisplay').textContent = state.tideRevealed ? RANK_LABEL[state.tideRank] : '?';
     document.getElementById('tideNote').textContent = state.tideRevealed
@@ -1344,10 +1480,11 @@
       const pIdx = PLAYERS.findIndex(p=>p.seat===seat);
       const container = document.getElementById('cards-'+seat);
       container.innerHTML = '';
-      const n = state.revealHands ? Math.min(state.hands[pIdx].length, 13) : 0;
+      const n = state.revealHands ? Math.min(state.hands[pIdx].length, 13) : state.dealProgress[pIdx];
       for(let k=0;k<n;k++){
         const cb = document.createElement('div');
-        cb.className = 'cardback' + (state.justRevealed ? ' deal-in' : '');
+        const isNewest = !state.revealHands && k === n-1;
+        cb.className = 'cardback' + ((state.justRevealed || isNewest) ? ' deal-in' : '');
         if(state.justRevealed) cb.style.animationDelay = (k*35)+'ms';
         container.appendChild(cb);
       }
@@ -1360,7 +1497,7 @@
     state.trick.forEach((entry, idx)=>{
       const seat = PLAYERS[entry.player].seat;
       const wrap = document.createElement('div');
-      wrap.className = 'played ' + seat;
+      wrap.className = 'played ' + seat + (idx===0 ? ' led' : '');
       wrap.appendChild(cardEl(entry.card));
       tz.appendChild(wrap);
       if(idx === state.trick.length-1){
@@ -1376,19 +1513,42 @@
     // hand
     const handEl = document.getElementById('hand');
     handEl.innerHTML = '';
-    if(state.revealHands){
-      const legal = state.currentPlayer===0 ? legalCards(0) : [];
-      const isYourTurn = state.currentPlayer===0 && !state.locked && state.tideRevealed && state.trick.length<4;
-      state.hands[0].forEach((card,idx)=>{
-        const slot = document.createElement('div');
-        const playable = isYourTurn && legal.some(c=>c.rank===card.rank && c.suit===card.suit);
-        slot.className = 'card-slot' + (playable ? '' : ' disabled') + (state.justRevealed ? ' deal-in' : '');
-        if(state.justRevealed) slot.style.animationDelay = (idx*35)+'ms';
-        slot.appendChild(cardEl(card));
-        slot.addEventListener('click', ()=>{ if(playable) humanPlay(card); });
-        handEl.appendChild(slot);
-      });
-    }
+    const dealtCount = state.revealHands ? state.hands[0].length : state.dealProgress[0];
+    const visibleHand = state.hands[0].slice(0, dealtCount);
+    const legal = state.currentPlayer===0 ? legalCards(0) : [];
+    const isYourTurn = state.currentPlayer===0 && !state.locked && state.tideRevealed && state.trick.length<4;
+    const suggestion = isYourTurn ? state.cachedSuggestion : null;
+    visibleHand.forEach((card,idx)=>{
+      const slot = document.createElement('div');
+      const playable = isYourTurn && legal.some(c=>c.rank===card.rank && c.suit===card.suit);
+      const isRecommended = !!suggestion && card.rank===suggestion.rank && card.suit===suggestion.suit;
+      const isNewestDeal = !state.revealHands && idx === visibleHand.length-1;
+      slot.className = 'card-slot'
+        + (playable ? '' : ' disabled')
+        + ((state.justRevealed || isNewestDeal) ? ' deal-in' : '')
+        + (isRecommended ? ' recommended' : '');
+      if(state.justRevealed) slot.style.animationDelay = (idx*35)+'ms';
+      slot.appendChild(cardEl(card));
+      slot.addEventListener('click', ()=>{ if(playable) humanPlay(card); });
+      handEl.appendChild(slot);
+    });
+  }
+
+  function renderBidTracker(){
+    const tracker = document.getElementById('bidTracker');
+    if(!tracker) return;
+    tracker.innerHTML = '';
+    if(state.bids[0] == null || !state.revealHands){ return; }
+    PLAYERS.forEach((p,i)=>{
+      const bid = state.bids[i];
+      if(bid == null) return;
+      const won = state.tricksThisRound[i];
+      const over = won > bid;
+      const chip = document.createElement('div');
+      chip.className = 'bid-chip' + (i===0 ? ' you' : '') + (over ? ' over' : '');
+      chip.innerHTML = `${i===0 ? 'You' : p.name} <span class="progress-num">${won}/${bid}</span>`;
+      tracker.appendChild(chip);
+    });
   }
 
   function isOverlayOpen(){
