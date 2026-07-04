@@ -221,6 +221,12 @@
     outline:2px solid var(--coral); outline-offset:1px;
     box-shadow:0 0 12px rgba(255,106,77,0.7), 0 3px 8px rgba(0,0,0,0.45);
   }
+  .card.tide-hot::after{
+    content:'TIDE'; position:absolute; top:60%; left:50%; transform:translate(-50%,-50%);
+    font-size:8.5px; letter-spacing:1.5px; color:#fff; background:var(--coral);
+    padding:2px 6px; border-radius:5px; font-family:'Space Mono',monospace;
+    z-index:2; white-space:nowrap; box-shadow:0 2px 5px rgba(0,0,0,0.4);
+  }
 
   /* ---------- Hand ---------- */
   .hand-wrap{
